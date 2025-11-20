@@ -245,40 +245,6 @@
                 </div>
             </div>
 
-            <!-- NEW RATE QUOTE TERMINAL (MOVED BELOW CHAT) -->
-            <div class="mb-8 p-4 win-border bg-gray-200">
-                <h3 class="bg-[#000080] text-white text-lg font-bold px-2 py-1 mb-4 text-center">INSTANT RATE QUOTE TERMINAL V1.0</h3>
-                <div class="inset-border p-4 bg-white">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 text-sm font-bold">
-                        <div>
-                            <label for="loadType" class="block mb-1">LOAD TYPE:</label>
-                            <select id="loadType" class="w-full border border-black p-1">
-                                <option value="reefer">REEFER (FTL)</option>
-                                <option value="flatbed">FLATBED (FTL)</option>
-                                <!-- Removed: <option value="dry">DRY VAN (FTL)</option> -->
-                            </select>
-                        </div>
-                        <div>
-                            <label for="origin" class="block mb-1">ORIGIN (State Code):</label>
-                            <input type="text" id="origin" placeholder="E.g., CA" class="w-full border border-black p-1 uppercase">
-                        </div>
-                        <div>
-                            <label for="destination" class="block mb-1">DESTINATION (State Code):</label>
-                            <input type="text" id="destination" placeholder="E.g., NY" class="w-full border border-black p-1 uppercase">
-                        </div>
-                    </div>
-                    
-                    <button onclick="calculateQuote()" class="w-full bg-green-500 text-white font-bold p-2 mb-4 border-2 border-black hover:bg-green-600 btn-active uppercase">
-                        [ RUN SIMULATION & GET RATE ]
-                    </button>
-
-                    <div id="quoteResult" class="text-center font-bold inset-border p-2 min-h-[40px] bg-yellow-100">
-                        Input Load Details Above and Click Button.
-                    </div>
-                </div>
-            </div>
-            <!-- END RATE QUOTE TERMINAL -->
-
 
             <!-- Footer -->
             <div class="text-center text-xs border-t border-black pt-4 mt-8">
