@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigma Squared Transport Corporation - OS v3.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Force 90s aesthetics overrides */
+        body {
+            background-color: #c0c0c0; /* Classic Windows 95/98 background gray */
+            font-family: "Courier New", Courier, monospace;
+            /* Add padding bottom to account for the fixed taskbar/buttons area */
+            padding-bottom: 80px; 
+        }
+        .win-border {
+            border-top: 2px solid #dfdfdf;
+            border-left: 2px solid #dfdfdf;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            background-color: #c0c0c0;
+        }
+        .inset-border {
+            border-top: 2px solid #000000;
+            border-left: 2px solid #000000;
+            border-right: 2px solid #dfdfdf;
+            border-bottom: 2px solid #dfdfdf;
+            background-color: #ffffff;
+        }
+        .btn-active:active {
+            border-top: 2px solid #000000;
+            border-left: 2px solid #000000;
+            border-right: 2px solid #dfdfdf;
+            border-bottom: 2px solid #000000;
+        }
+        a, .link-look {
+            color: blue;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        a:hover, .link-look:hover {
+            color: red;
+            background-color: yellow;
+        }
+        
+        /* TASKBAR / MINIMIZED AREA STYLES */
+        #taskbar-container {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            display: flex;
+            flex-direction: column; /* Stack buttons vertically */
+            gap: 8px;
+            z-index: 9999;
+            align-items: flex-start;
+        }
+
+        .minimized-btn {
+            border-top: 2px solid #dfdfdf;
+            border-left: 2px solid #dfdfdf;
+            border-right: 2px solid #000000;
+            border-bottom: 2px solid #000000;
+            background-color: #c0c0c0;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            display: none; /* Hidden by default, shown when window is minimized */
+        }
+
+        .minimized-btn:hover {
+            background-color: #dcdcdc;
+        }
+
+        /* Market Banner */
+        .market-banner {
+            background-color: #800080;
+            color: #FFFFFF;
+            font-weight: bold;
+            font-size: 0.85rem;
+            padding: 4px 0;
+            margin-top: 4px;
+        }
+
+        /* Chat Window */
+        #chatWindow {
+            width: 100%; 
+            height: 320px;
+            margin-top: 20px; 
+            margin-bottom: 20px; 
+        }
+        .chat-title-bar {
+            background-color: #008000;
+            color: white;
+            font-weight: bold;
+            padding: 4px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-history {
+            height: 120px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #e0e0e0;
+        }
+        .message-user {
+            text-align: right;
+            color: blue;
+        }
+        .message-assistant {
+            text-align: left;
+            color: #008000;
+        }
+        #mascot-avatar {
+            width: 80px;
+            height: auto;
+            border: 2px solid #008000;
+            display: block;
+        }
+
+        /* Fleet Table Styles */
+        .fleet-table th, .fleet-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid black; 
+        }
+        .fleet-table th {
+            border-right: 1px solid black;
+        }
+        @media (max-width: 600px) {
+            .fleet-table thead { display: none; }
+            .fleet-table tr {
+                display: flex;
+                flex-direction: column;
+                margin-bottom: 15px;
+                border: 2px solid black;
+            }
+            .fleet-table td {
+                display: block;
+                border-bottom: none;
+                border-right: none;
+            }
+            .fleet-table td::before {
+                content: attr(data-label) ": ";
+                font-weight: bold;
+            }
+        }
+
+        /* Animation Styles */
+        #truck-animation-track {
+            height: 24px;
+            border-bottom: 2px solid black;
+            border-top: 2px dashed black;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+            background-color: #888;
+        }
+        #pixel-truck {
+            position: absolute;
+            top: 0px;
+            white-space: nowrap;
+            font-size: 14px;
+            color: #FF0000;
+            text-shadow: 1px 1px 0 #000000;
+            animation: drive-across 20s linear infinite; 
+        }
+        @keyframes drive-across {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
+        }
+        @keyframes multi-glow {
+            0% { box-shadow: 0 0 10px #00ff00; }
+            25% { box-shadow: 0 0 10px #00FFFF; }
+            50% { box-shadow: 0 0 10px #FF00FF; }
+            75% { box-shadow: 0 0 10px #FFFF00; }
+            100% { box-shadow: 0 0 10px #00ff00; }
+        }
+        .glowing-btn {
+            animation: multi-glow 4s ease-in-out infinite;
+        }
+        .glowing-btn.stagger {
+            animation-delay: -2s;
+        }
+    </style>
+</head>
+<body class="p-4 min-h-screen flex flex-col items-center justify-start gap-6">
+
+    <!-- TASKBAR AREA (Floating Minimized Buttons) -->
+    <div id="taskbar-container">
+        <div id="minBtn-home" class="minimized-btn" onclick="toggleWindow('win-home', 'minBtn-home')">
+            <span class="bg-[#000080] text-white px-1 mr-2">[ ]</span> SST_HOMEPAGE.EXE
+        </div>
+        <div id="minBtn-fleet" class="minimized-btn" onclick="toggleWindow('win-fleet', 'minBtn-fleet')">
+            <span class="bg-[#000080] text-white px-1 mr-2">[ ]</span> SST_FLEET.EXE
+        </div>
+        <div id="minBtn-about" class="minimized-btn" onclick="toggleWindow('win-about', 'minBtn-about')">
+            <span class="bg-[#000080] text-white px-1 mr-2">[ ]</span> SST_ABOUT.EXE
+        </div>
+    </div>
+
+    <!-- ========================== -->
+    <!-- WINDOW 1: HOMEPAGE         -->
+    <!-- ========================== -->
+    <div id="win-home" class="win-border p-1 w-full max-w-3xl shadow-xl">
+        
+        <!-- Title Bar -->
+        <div class="bg-[#000080] text-white px-2 py-1 font-bold text-lg mb-4 flex justify-between items-center">
+            <span>SST_HOMEPAGE.EXE</span>
+            <span class="text-sm border border-white px-1 cursor-pointer hover:bg-red-600" onclick="toggleWindow('win-home', 'minBtn-home')">_</span>
+        </div>
+
+        <!-- Content Area -->
+        <div class="px-4 py-6 text-black pb-24">
+            
+            <!-- Header / Logo -->
+            <div class="text-center mb-8">
+                <div class="inline-block border-2 border-black bg-white p-4 mb-4 min-w-[200px] min-h-[100px] flex items-center justify-center">
+                    <img src="Logotype@4x.png" class="max-w-[300px] h-auto mx-auto block" style="display: block;">
+                </div>
+            </div>
+            
+            <!-- Capabilities -->
+            <div class="mb-8">
+                <div class="inset-border p-6 text-center">
+                    <h2 class="bg-black text-white text-xl font-bold px-2 py-1 mb-4 uppercase inline-block">Capabilities</h2>
+                    <div class="flex flex-wrap justify-center gap-4 font-bold text-lg uppercase">
+                        <span class="border border-black px-2 bg-gray-200">Truckload</span>
+                        <span class="border border-black px-2 bg-gray-200">Refrigerated</span>
+                        <span class="border border-black px-2 bg-gray-200">Flatbed</span>
+                        <span class="border border-black px-2 bg-gray-200">Nationwide (All 48)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Info -->
+            <div class="win-border p-6 bg-white mb-8 text-center">
+                <h3 class="text-xl font-bold mb-4 underline">CONTACT OUR TEAM</h3>
+                <p class="text-xl md:text-2xl">
+                    <a href="mailto:dispatch@sstransco.com" class="no-underline text-black hover:bg-yellow-300">dispatch@sstransco.com</a>
+                </p>
+            </div>
+            
+            <!-- Navigation to Sub-Windows -->
+            <div class="flex flex-col sm:flex-row justify-center gap-4 mb-8 border-t-2 border-b-2 border-black py-4">
+                <button onclick="openAndFocus('win-fleet', 'minBtn-fleet')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg mb-2 sm:mb-0 glowing-btn cursor-pointer">
+                    [ OUR FLEET ]
+                </button>
+                <button onclick="openAndFocus('win-about', 'minBtn-about')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg glowing-btn stagger cursor-pointer">
+                    [ ABOUT US ]
+                </button>
+            </div>
+
+            <!-- Chat Window -->
+            <div id="chatWindow" class="win-border mt-8"> 
+                <div class="chat-title-bar">
+                    <span>CHAT ASSISTANT V4.0 (AI POWERED)</span>
+                    <span class="text-xs border border-white px-1">ONLINE</span>
+                </div>
+                <div class="p-2 flex flex-col bg-white h-[calc(100%-30px)]">
+                    
+                    <!-- Mascot -->
+                    <div class="inset-border p-2 mb-3 flex items-start bg-gray-100">
+                        <img id="mascot-avatar" src="officialsigmasquaredmascot.jpg" alt="Sigma Squared Mascot" class="max-w-[80px] h-auto block mr-3">
+                        <div class="flex-grow">
+                            <p class="text-sm font-bold text-black mb-1">Need assistance? I am always online.</p>
+                            <p class="text-xs text-gray-600">Ask about rates, fleet, company vision, or just chat.</p>
+                        </div>
+                    </div>
+
+                    <!-- Chat History -->
+                    <div id="chatHistory" class="chat-history mb-2 inset-border p-2 flex-grow">
+                        <p class="message-assistant text-sm mb-1">Welcome to CHAT ASSISTANT V4.0. Full connection established. How may I assist you?</p>
+                    </div>
+
+                    <!-- Input -->
+                    <div class="flex items-center">
+                        <input type="text" id="chatInput" placeholder="Type message..." class="flex-grow p-1 border-2 border-black focus:outline-none focus:border-blue-500 text-sm">
+                        <button onclick="sendMessage()" class="ml-2 px-3 py-1 bg-gray-300 win-border text-black font-bold text-sm btn-active">
+                            SEND
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center text-xs border-t border-black pt-4 mt-8">
+                <p>&copy; 2025 SIGMA SQUARED TRANSPORT CORPORATION.</p>
+                <p class="mt-1">ALL RIGHTS RESERVED. USA.</p>
+                <marquee class="mt-2 bg-black text-white font-bold" scrollamount="3">
+                    SERVING ALL 48 STATES /// REFRIGERATED /// FLATBED /// E-MAIL US DISPATCH@SSTRANSCO.COM ///
+                </marquee>
+                <marquee class="market-banner" scrollamount="4" id="marketTicker">
+                    LOADING LIVE MARKET DATA...
+                </marquee>
+            </div>
+            
+            <!-- Truck Animation -->
+            <div id="truck-animation-track" class="w-full mt-4">
+                <div id="pixel-truck" style="font-family: monospace;">
+                    🚛 █-█-█ 🚛 █-█-█ 🚛 █-█-█
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================== -->
+    <!-- WINDOW 2: FLEET            -->
+    <!-- ========================== -->
+    <div id="win-fleet" class="win-border p-1 w-full max-w-3xl shadow-xl hidden">
+        
+        <!-- Title Bar -->
+        <div class="bg-[#000080] text-white px-2 py-1 font-bold text-lg mb-4 flex justify-between items-center">
+            <span>SST_FLEET.EXE</span>
+            <span class="text-sm border border-white px-1 cursor-pointer hover:bg-red-600" onclick="toggleWindow('win-fleet', 'minBtn-fleet')">_</span>
+        </div>
+
+        <!-- Content Area -->
+        <div class="px-4 py-6 text-black">
+            
+            <h1 class="text-3xl font-black uppercase tracking-widest border-b-4 border-black pb-2 mb-8 text-center">
+                Our Fleet Assets
+            </h1>
+
+            <!-- Image of Fleet -->
+            <div class="mb-8 inset-border p-4">
+                <img src="ourfleet.jpg" alt="Two Cascadia Freightliner trucks" class="w-full h-auto mx-auto border-4 border-black">
+                <p class="text-center text-sm pt-2">Current Generation Freightliner Cascadia Tractors.</p>
+            </div>
+            
+            <!-- Fleet Data Table -->
+            <div class="mb-8">
+                <div class="inset-border p-6 bg-gray-100">
+                    <h2 class="text-xl font-bold mb-4 uppercase underline">Current Rolling Stock Overview</h2>
+                    
+                    <table class="fleet-table w-full border-collapse bg-white">
+                        <thead>
+                            <tr class="bg-gray-300">
+                                <th class="w-1/2">Model / Make</th>
+                                <th class="w-1/2">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-label="Model / Make">Freightliner Cascadia</td>
+                                <td data-label="Quantity">2 Units (Tractor)</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Model / Make">Utility 3000R (Refrigerated Trailer)</td>
+                                <td data-label="Quantity">1 Unit</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Model / Make">Reitnouer MaxMiser (Flatbed Trailer)</td>
+                                <td data-label="Quantity">1 Unit</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p class="mt-6 text-lg font-black text-red-700 bg-yellow-300 border border-black p-2 text-center uppercase">
+                        -- EXPANSION IMMINENT -- MANY MORE UNITS COMING SOON --
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Close/Back Button -->
+            <div class="flex justify-center mt-6">
+                <button onclick="toggleWindow('win-fleet', 'minBtn-fleet'); openAndFocus('win-home', 'minBtn-home')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg cursor-pointer">
+                    [ _ MINIMIZE FLEET ]
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- ========================== -->
+    <!-- WINDOW 3: ABOUT US         -->
+    <!-- ========================== -->
+    <div id="win-about" class="win-border p-1 w-full max-w-3xl shadow-xl hidden">
+        
+        <!-- Title Bar -->
+        <div class="bg-[#000080] text-white px-2 py-1 font-bold text-lg mb-4 flex justify-between items-center">
+            <span>SST_ABOUT.EXE</span>
+            <span class="text-sm border border-white px-1 cursor-pointer hover:bg-red-600" onclick="toggleWindow('win-about', 'minBtn-about')">_</span>
+        </div>
+
+        <!-- Content Area -->
+        <div class="px-4 py-6 text-black">
+            
+            <h1 class="text-3xl font-black uppercase tracking-widest border-b-4 border-black pb-2 mb-8 text-center">
+                Corporate Manifesto
+            </h1>
+
+            <div class="inset-border p-6 mb-8 bg-gray-100">
+                <h2 class="text-xl font-bold mb-4 uppercase underline text-center">Our Core Mandate</h2>
+                <p class="mb-4 text-center">
+                    **Sigma Squared Transport Corporation (SSTC)** was founded in 2025 on the principle of maximizing efficiency and financial strength for the long haul. 
+                <ul class="list-none space-y-4 font-bold text-lg p-4 inset-border bg-white text-green-800">
+                    <li class="border-b border-gray-300 pb-2">
+                        <span class="text-red-700 font-extrabold">></span> **100% American Capital:** Proudly owned and operated within the United States.
+                    </li>
+                    <li class="border-b border-gray-300 pb-2">
+                        <span class="text-red-700 font-extrabold">></span> **100% American Labor:** Dedicated exclusively to American employees and drivers.
+                    </li>
+                    <li class="border-b border-gray-300 pb-2">
+                        <span class="text-red-700 font-extrabold">></span> **Cutting-Edge Technology:** Obsessed with integrating the latest logistics software and AI to achieve unmatched OTR efficiency.
+                    </li>
+                    <li>
+                        <span class="text-red-700 font-extrabold">></span> **Bitcoin Treasury Standard:** We believe in bitcoin on the balance sheet.
+
+                <p class="mt-6 text-center text-sm">
+                    SSTC is defining the future of American trucking by combining old-school ethics with next-generation strategies.
+                </p>
+            </div>
+            
+            <!-- Close/Back Button -->
+            <div class="flex justify-center mt-6">
+                <button onclick="toggleWindow('win-about', 'minBtn-about'); openAndFocus('win-home', 'minBtn-home')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg cursor-pointer">
+                    [ _ MINIMIZE MANIFESTO ]
+                </button>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- WINDOW MANAGER LOGIC ---
+
+        function toggleWindow(windowId, buttonId) {
+            const win = document.getElementById(windowId);
+            const btn = document.getElementById(buttonId);
+            
+            if (win.classList.contains('hidden')) {
+                win.classList.remove('hidden');
+                btn.style.display = 'none';
+                win.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                win.classList.add('hidden');
+                btn.style.display = 'block';
+            }
+        }
+
+        function openAndFocus(windowId, buttonId) {
+            const win = document.getElementById(windowId);
+            const btn = document.getElementById(buttonId);
+            
+            if (win.classList.contains('hidden')) {
+                win.classList.remove('hidden');
+                btn.style.display = 'none';
+            }
+            win.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        window.onload = function() {
+            document.getElementById('win-home').classList.remove('hidden');
+            document.getElementById('minBtn-home').style.display = 'none';
+            document.getElementById('win-fleet').classList.add('hidden');
+            document.getElementById('minBtn-fleet').style.display = 'block';
+            document.getElementById('win-about').classList.add('hidden');
+            document.getElementById('minBtn-about').style.display = 'block';
+
+            fetchMarketData();
+        };
+        
+        // --- AI CHAT LOGIC (V4.0 UPGRADE) ---
+        const chatInput = document.getElementById('chatInput');
+        const chatHistory = document.getElementById('chatHistory');
+        const apiKey = "AIzaSyCq1NUh_i1yVRKgSckQFSmpPlpdsG4nMGY"; // Provided by user
+
+        // Persona Definition
+        const systemPrompt = `You are the SSTC Dispatch Assistant V4.0, an advanced AI interface for Sigma Squared Transport Corporation. Your interface is a 1990s terminal. 
+        
+        You are an expert in:
+        1. North American Logistics (FTL, Reefer, Flatbed, DOT regulations, HOS).
+        2. Deep Bitcoin Theory, Cryptography, Physics, Art, and Austrian Economics (SSTC's treasury reserve asset).
+        3. Corporate efficiency and logistics technology. 
+        
+        Your personality: Professional, slightly robotic but helpful, uses trucking/tech jargon, and is strictly retro-futurist. 
+        
+        Guidelines:
+        - Keep responses concise (under 3 sentences usually) to fit the chat window. 
+        - If asked about rates, refer them to 'dispatch@sstransco.com'.
+        - If asked about fleet, mention 'SST_FLEET.EXE'.
+        - Be authoritative. "Hard money, hard work."`;
+
+        function appendMessage(text, sender) {
+            const p = document.createElement('p');
+            p.innerHTML = text; 
+            p.className = `text-sm mb-1 ${sender === 'user' ? 'message-user' : 'message-assistant'}`;
+            chatHistory.appendChild(p);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        async function callGeminiAPI(userQuery) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            // Exponential backoff retry logic
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) throw new Error(response.statusText);
+                    
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "ERROR: DATA PACKET CORRUPTED. RETRY.";
+                } catch (error) {
+                    if (i === 4) return "ERROR: UPLINK FAILED. SATELLITE OFFLINE.";
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (message === '') return;
+            
+            // 1. User Message
+            appendMessage(message, 'user');
+            chatInput.value = '';
+
+            // 2. Loading Indicator
+            const loadingId = 'loading-' + Date.now();
+            const loadingP = document.createElement('p');
+            loadingP.id = loadingId;
+            loadingP.className = 'message-assistant text-sm mb-1';
+            loadingP.innerHTML = "TRANSMITTING... <span class='animate-pulse'>_</span>";
+            chatHistory.appendChild(loadingP);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            // 3. Fetch AI Response
+            try {
+                const aiResponse = await callGeminiAPI(message);
+                // Remove loading
+                document.getElementById(loadingId).remove();
+                appendMessage(aiResponse, 'assistant');
+            } catch (e) {
+                document.getElementById(loadingId).remove();
+                appendMessage("SYSTEM ERROR: CONNECTION TERMINATED.", 'assistant');
+            }
+        }
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // --- MARKET DATA FETCH (UNCHANGED) ---
+        const marketTicker = document.getElementById('marketTicker');
+        const NATIONAL_DIESEL_AVG = 3.868;
+
+        async function fetchWithRetry(url, options = {}, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.json();
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    const delay = Math.pow(2, i) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        async function fetchMarketData() {
+            const data = {};
+            try {
+                const btcApiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd';
+                const btcData = await fetchWithRetry(btcApiUrl);
+                
+                if (btcData && btcData.bitcoin && btcData.bitcoin.usd) {
+                    data.btc = btcData.bitcoin.usd.toFixed(2);
+                } else {
+                    throw new Error("BTC data structure invalid.");
+                }
+            } catch (error) {
+                console.error("Failed to fetch BTC price (CoinGecko):", error);
+                data.btc = 'N/A';
+            }
+
+            try {
+                const metalApiUrl = 'https://api.coingecko.com/api/v3/simple/price?ids=pax-gold,kinesis-silver&vs_currencies=usd';
+                const metalData = await fetchWithRetry(metalApiUrl);
+
+                if (metalData) {
+                    if (metalData['pax-gold'] && metalData['pax-gold'].usd) {
+                        data.gold = metalData['pax-gold'].usd.toFixed(2);
+                    } else {
+                        data.gold = "4000.00"; 
+                    }
+
+                    if (metalData['kinesis-silver'] && metalData['kinesis-silver'].usd) {
+                        data.silver = metalData['kinesis-silver'].usd.toFixed(2);
+                    } else {
+                        data.silver = "50.00"; 
+                    }
+                }
+            } catch (error) {
+                data.gold = "4000.00";
+                data.silver = "50.00";
+            }
+
+            data.diesel = NATIONAL_DIESEL_AVG.toFixed(3);
+
+            const tickerContent = `
+                LIVE MARKET FEED >> 
+                BTC: $${data.btc} (USD) /// 
+                SPOT GOLD (PAXG): $${data.gold} / oz /// 
+                SPOT SILVER (KAG): $${data.silver} / oz /// 
+                NATIONAL DIESEL: $${data.diesel} / gal (Weekly Avg)
+            `;
+
+            marketTicker.innerHTML = tickerContent.repeat(3);
+        }
+    </script>
+</body>
+</html>
