@@ -199,6 +199,9 @@
         <div id="minBtn-about" class="minimized-btn" onclick="toggleWindow('win-about', 'minBtn-about')">
             <span class="bg-[#000080] text-white px-1 mr-2">[ ]</span> SST_ABOUT.EXE
         </div>
+        <div id="minBtn-tech" class="minimized-btn" onclick="toggleWindow('win-tech', 'minBtn-tech')">
+            <span class="bg-[#000080] text-white px-1 mr-2">[ ]</span> CARRIERMIND.EXE
+        </div>
     </div>
 
     <!-- ========================== -->
@@ -222,6 +225,22 @@
                 </div>
             </div>
             
+            <!-- Authority Credentials -->
+            <div class="mb-8">
+                <div class="inset-border p-4 bg-white">
+                    <table class="w-full text-sm">
+                        <tr>
+                            <td class="font-bold pr-2 border-r border-gray-400 text-center w-1/3 py-1">USDOT 4473629</td>
+                            <td class="font-bold px-2 border-r border-gray-400 text-center w-1/3 py-1">MC-1547581</td>
+                            <td class="font-bold pl-2 text-center w-1/3 py-1">FMCSA: AUTHORIZED</td>
+                        </tr>
+                    </table>
+                    <div class="border-t border-gray-400 mt-2 pt-2 text-center text-xs text-gray-700">
+                        $1,000,000 AUTO LIABILITY &nbsp;/&nbsp; $1,000,000 CARGO INSURANCE &nbsp;/&nbsp; NATIONWIDE - ALL 48 STATES
+                    </div>
+                </div>
+            </div>
+
             <!-- Capabilities -->
             <div class="mb-8">
                 <div class="inset-border p-6 text-center">
@@ -248,8 +267,11 @@
                 <button onclick="openAndFocus('win-fleet', 'minBtn-fleet')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg mb-2 sm:mb-0 glowing-btn cursor-pointer">
                     [ OUR FLEET ]
                 </button>
-                <button onclick="openAndFocus('win-about', 'minBtn-about')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg glowing-btn stagger cursor-pointer">
+                <button onclick="openAndFocus('win-about', 'minBtn-about')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg mb-2 sm:mb-0 glowing-btn stagger cursor-pointer">
                     [ ABOUT US ]
+                </button>
+                <button onclick="openAndFocus('win-tech', 'minBtn-tech')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg glowing-btn cursor-pointer">
+                    [ TECHNOLOGY ]
                 </button>
             </div>
 
@@ -330,6 +352,12 @@
                 <img src="ourfleet.jpg" alt="Two Cascadia Freightliner trucks" class="w-full h-auto mx-auto border-4 border-black">
                 <p class="text-center text-sm pt-2">Current Generation Freightliner Cascadia Tractors.</p>
             </div>
+
+            <!-- Third Truck -->
+            <div class="mb-8 inset-border p-4">
+                <img src="truck3.jpg" alt="2020 Kenworth T680 Unit 2049" class="w-full h-auto mx-auto border-4 border-black">
+                <p class="text-center text-sm pt-2">2020 Kenworth T680 — Unit 2049.</p>
+            </div>
             
             <!-- Fleet Data Table -->
             <div class="mb-8">
@@ -339,32 +367,58 @@
                     <table class="fleet-table w-full border-collapse bg-white">
                         <thead>
                             <tr class="bg-gray-300">
-                                <th class="w-1/2">Model / Make</th>
-                                <th class="w-1/2">Quantity</th>
+                                <th>Unit</th>
+                                <th>Specs</th>
+                                <th>Qty</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td data-label="Model / Make">Freightliner Cascadia</td>
-                                <td data-label="Quantity">2 Units (Tractor)</td>
+                                <td data-label="Unit">Freightliner Cascadia (Tractor)</td>
+                                <td data-label="Specs">Sleeper Cab / ELD + GPS Equipped / Samsara Telemetry</td>
+                                <td data-label="Qty">2</td>
                             </tr>
                             <tr>
-                                <td data-label="Model / Make">Utility 3000R (Refrigerated Trailer)</td>
-                                <td data-label="Quantity">1 Unit</td>
+                                <td data-label="Unit">Kenworth T680 (Tractor)</td>
+                                <td data-label="Specs">2020 / Sleeper Cab / ELD + GPS Equipped / Samsara Telemetry</td>
+                                <td data-label="Qty">1</td>
                             </tr>
                             <tr>
-                                <td data-label="Model / Make">Reitnouer MaxMiser (Flatbed Trailer)</td>
-                                <td data-label="Quantity">1 Unit</td>
+                                <td data-label="Unit">Utility 3000R (Reefer Trailer)</td>
+                                <td data-label="Specs">53' / Temp Range -20&deg;F to 65&deg;F / Multi-Temp Capable</td>
+                                <td data-label="Qty">1</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Unit">Reitnouer MaxMiser (Flatbed Trailer)</td>
+                                <td data-label="Specs">53' / Aluminum / 48,000 lb Capacity</td>
+                                <td data-label="Qty">1</td>
                             </tr>
                         </tbody>
                     </table>
+                    <p class="mt-4 text-xs text-gray-600 text-center">ALL UNITS ELD COMPLIANT / REAL-TIME GPS / SAMSARA FLEET TELEMETRY</p>
                     
                     <p class="mt-6 text-lg font-black text-red-700 bg-yellow-300 border border-black p-2 text-center uppercase">
                         -- EXPANSION IMMINENT -- MANY MORE UNITS COMING SOON --
                     </p>
                 </div>
             </div>
-            
+
+            <!-- Live GPS Positioning -->
+            <div class="mb-8">
+                <div class="inset-border p-6" style="background-color: #0a0a0a;">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold uppercase" style="color: #00ff00; font-family: 'Courier New', monospace;">FLEET POSITIONING SYSTEM v2.0</h2>
+                        <span id="gps-uplink" class="text-xs px-2 py-1 border" style="color: #00ff00; border-color: #00ff00;">UPLINK: CONNECTING...</span>
+                    </div>
+                    <div id="gps-readout" style="color: #00ff00; font-family: 'Courier New', monospace; font-size: 0.8rem; line-height: 1.8;">
+                        <div style="color: #007700;">ACQUIRING SATELLITE SIGNAL...</div>
+                    </div>
+                    <div class="mt-3 pt-2" style="border-top: 1px solid #003300;">
+                        <span id="gps-timestamp" class="text-xs" style="color: #007700;">LAST UPDATE: --:--:--</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Close/Back Button -->
             <div class="flex justify-center mt-6">
                 <button onclick="toggleWindow('win-fleet', 'minBtn-fleet'); openAndFocus('win-home', 'minBtn-home')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg cursor-pointer">
@@ -425,6 +479,64 @@
         </div>
     </div>
 
+    <!-- ========================== -->
+    <!-- WINDOW 4: TECHNOLOGY       -->
+    <!-- ========================== -->
+    <div id="win-tech" class="win-border p-1 w-full max-w-3xl shadow-xl hidden">
+
+        <!-- Title Bar -->
+        <div class="bg-[#000080] text-white px-2 py-1 font-bold text-lg mb-4 flex justify-between items-center">
+            <span>CARRIERMIND.EXE</span>
+            <span class="text-sm border border-white px-1 cursor-pointer hover:bg-red-600" onclick="toggleWindow('win-tech', 'minBtn-tech')">_</span>
+        </div>
+
+        <!-- Content Area -->
+        <div class="px-4 py-6 text-black">
+
+            <h1 class="text-3xl font-black uppercase tracking-widest border-b-4 border-black pb-2 mb-4 text-center">
+                CARRIERMIND&trade; Technology Suite
+            </h1>
+            <p class="text-center text-sm mb-8 text-gray-600">PROPRIETARY DISPATCH INTELLIGENCE PLATFORM</p>
+
+            <div class="inset-border p-6 mb-8 bg-gray-100">
+                <ul class="list-none space-y-6 font-bold text-lg p-4 inset-border bg-white text-green-800">
+                    <li class="border-b border-gray-300 pb-4">
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">AUTONOMOUS DOCUMENT INTELLIGENCE</span>
+                        <p class="font-normal text-sm mt-1 text-black">Incoming rate confirmations, BOLs, and PODs are intercepted, classified, and processed by onboard AI. 40+ data fields extracted per document. Zero manual entry. Email received, load created.</p>
+                    </li>
+                    <li class="border-b border-gray-300 pb-4">
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">REAL-TIME PROFIT TARGETING</span>
+                        <p class="font-normal text-sm mt-1 text-black">Live GPS telemetry feeds a lane intelligence engine that ranks every available load by true net profit &mdash; accounting for deadhead, fuel cost, and freight demand at destination. Our trucks chase the highest-margin move, not the nearest one.</p>
+                    </li>
+                    <li class="border-b border-gray-300 pb-4">
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">CLOSED-LOOP DISPATCH AUTOMATION</span>
+                        <p class="font-normal text-sm mt-1 text-black">Driver completes route &rarr; load status updates automatically &rarr; BOL matched and imported &rarr; invoice generated. No phone calls. No paperwork lag. Event-driven from cab to cash.</p>
+                    </li>
+                    <li class="border-b border-gray-300 pb-4">
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">MINUTES, NOT DAYS</span>
+                        <p class="font-normal text-sm mt-1 text-black">Rate confirmation received to driver dispatched: minutes. Delivery confirmed to invoice submitted: automatic. Factoring documents bundled and transmitted on completion. The entire cycle from booking to payment runs at machine speed.</p>
+                    </li>
+                    <li class="border-b border-gray-300 pb-4">
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">IFTA + COMPLIANCE AUTOMATION</span>
+                        <p class="font-normal text-sm mt-1 text-black">Fuel receipts and GPS mileage are reconciled automatically by state. Quarterly IFTA filings generated without manual calculation. Full audit trail maintained at all times.</p>
+                    </li>
+                    <li>
+                        <span class="text-red-700 font-extrabold">></span> <span class="underline">HARD MONEY TREASURY</span>
+                        <p class="font-normal text-sm mt-1 text-black">Real-time visibility across cash reserves and digital asset holdings. Liquidity position monitored continuously. We know our exact financial posture at all times.</p>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Close/Back Button -->
+            <div class="flex justify-center mt-6">
+                <button onclick="toggleWindow('win-tech', 'minBtn-tech'); openAndFocus('win-home', 'minBtn-home')" class="win-border px-6 py-3 bg-gray-300 text-black font-bold hover:bg-gray-400 btn-active text-center uppercase text-lg cursor-pointer">
+                    [ _ MINIMIZE CARRIERMIND ]
+                </button>
+            </div>
+
+        </div>
+    </div>
+
     <script>
         // --- WINDOW MANAGER LOGIC ---
 
@@ -460,62 +572,87 @@
             document.getElementById('minBtn-fleet').style.display = 'block';
             document.getElementById('win-about').classList.add('hidden');
             document.getElementById('minBtn-about').style.display = 'block';
+            document.getElementById('win-tech').classList.add('hidden');
+            document.getElementById('minBtn-tech').style.display = 'block';
 
             fetchMarketData();
+            fetchFleetGPS();
         };
+
+        // --- FLEET GPS POSITIONING ---
+        async function fetchFleetGPS() {
+            const readout = document.getElementById('gps-readout');
+            const uplink = document.getElementById('gps-uplink');
+            const timestamp = document.getElementById('gps-timestamp');
+
+            try {
+                const response = await fetch(`${BACKEND_API}/api/public/fleet-locations`);
+                if (!response.ok) throw new Error('GPS FEED UNAVAILABLE');
+
+                const data = await response.json();
+                uplink.textContent = `UPLINK: ${data.uplink}`;
+                uplink.style.color = data.uplink === 'ACTIVE' ? '#00ff00' : '#ff0000';
+                uplink.style.borderColor = data.uplink === 'ACTIVE' ? '#00ff00' : '#ff0000';
+
+                if (data.units && data.units.length > 0) {
+                    let html = '<div style="font-size: 0.7rem; color: #007700; margin-bottom: 8px; border-bottom: 1px solid #003300; padding-bottom: 4px;">';
+                    html += 'UNIT &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; LAT &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; LNG &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; STATUS</div>';
+
+                    data.units.forEach(unit => {
+                        const statusColor = unit.status === 'EN ROUTE' ? '#00ff00' : '#888800';
+                        html += `<div>`;
+                        html += `<span style="color: #00ff00;">${unit.unit}</span>`;
+                        html += `&nbsp;&nbsp;&nbsp; ${unit.lat.toFixed(4)}`;
+                        html += `&nbsp;&nbsp;&nbsp; ${unit.lng.toFixed(4)}`;
+                        html += `&nbsp;&nbsp;&nbsp; <span style="color: ${statusColor};">[${unit.status}]</span>`;
+                        html += `</div>`;
+                    });
+                    readout.innerHTML = html;
+                } else {
+                    readout.innerHTML = '<div style="color: #888800;">NO UNITS REPORTING. FLEET MAY BE OFFLINE.</div>';
+                }
+
+                timestamp.textContent = `LAST UPDATE: ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                uplink.textContent = 'UPLINK: OFFLINE';
+                uplink.style.color = '#ff0000';
+                uplink.style.borderColor = '#ff0000';
+                readout.innerHTML = '<div style="color: #ff0000;">ERROR: SATELLITE FEED UNAVAILABLE. RETRY LATER.</div>';
+            }
+
+            // Refresh every 60 seconds
+            setTimeout(fetchFleetGPS, 60000);
+        }
         
         // --- AI CHAT LOGIC (V4.0 UPGRADE) ---
+        // Chat now proxied through CarrierMind backend (API key server-side)
+        const BACKEND_API = 'https://api.carriermind.com';
         const chatInput = document.getElementById('chatInput');
         const chatHistory = document.getElementById('chatHistory');
-        const apiKey = "AIzaSyCq1NUh_i1yVRKgSckQFSmpPlpdsG4nMGY"; // Provided by user
-
-        // Persona Definition
-        const systemPrompt = `You are the SSTC Dispatch Assistant V4.0, an advanced AI interface for Sigma Squared Transport Corporation. Your interface is a 1990s terminal. 
-        
-        You are an expert in:
-        1. North American Logistics (FTL, Reefer, Flatbed, DOT regulations, HOS).
-        2. Deep Bitcoin Theory, Cryptography, Physics, Art, and Austrian Economics (SSTC's treasury reserve asset).
-        3. Corporate efficiency and logistics technology. 
-        
-        Your personality: Professional, slightly robotic but helpful, uses trucking/tech jargon, and is strictly retro-futurist. 
-        
-        Guidelines:
-        - Keep responses concise (under 3 sentences usually) to fit the chat window. 
-        - If asked about rates, refer them to 'dispatch@sstransco.com'.
-        - If asked about fleet, mention 'SST_FLEET.EXE'.
-        - Be authoritative. "Hard money, hard work."`;
 
         function appendMessage(text, sender) {
             const p = document.createElement('p');
-            p.innerHTML = text; 
+            p.innerHTML = text;
             p.className = `text-sm mb-1 ${sender === 'user' ? 'message-user' : 'message-assistant'}`;
             chatHistory.appendChild(p);
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
 
         async function callGeminiAPI(userQuery) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
-            };
-
-            // Exponential backoff retry logic
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 3; i++) {
                 try {
-                    const response = await fetch(url, {
+                    const response = await fetch(`${BACKEND_API}/api/public/chat`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify({ message: userQuery })
                     });
-                    
+
                     if (!response.ok) throw new Error(response.statusText);
-                    
+
                     const result = await response.json();
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "ERROR: DATA PACKET CORRUPTED. RETRY.";
+                    return result.response || "ERROR: DATA PACKET CORRUPTED. RETRY.";
                 } catch (error) {
-                    if (i === 4) return "ERROR: UPLINK FAILED. SATELLITE OFFLINE.";
+                    if (i === 2) return "ERROR: UPLINK FAILED. SATELLITE OFFLINE.";
                     await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
                 }
             }
