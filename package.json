@@ -1,0 +1,11 @@
+{
+  "name": "sigma-squared-driver-application",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Native DOT driver application for Sigma Squared Transport Corporation",
+  "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "tesseract.js": "7.0.0",
+    "zxing-wasm": "3.1.2"
+  }
+}
