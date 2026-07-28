@@ -24,6 +24,10 @@ const employmentStatus = document.querySelector("[data-employment-status]");
 const missingList = document.querySelector("[data-missing-list]");
 const backendForm = document.querySelector("[data-backend-form]");
 const backendPayload = document.querySelector("[data-backend-payload]");
+const stepTotal = document.querySelector("[data-step-total]");
+const requestPanel = document.querySelector("[data-request-panel]");
+const adminRecipient = document.querySelector("[data-admin-recipient]");
+const adminSendStatus = document.querySelector("[data-admin-send-status]");
 const sessionKey = "sigma-driver-application-v2";
 const applicationDate = new Date();
 const today = toISODate(applicationDate);
@@ -47,6 +51,20 @@ let repeatIndex = 0;
 let tesseractWorker;
 let pendingBackendAction = "";
 let activeOcrStatus = medicalStatus;
+let requestMode = "";
+
+const consentRequests = {
+  psp: {
+    field: "psp_authorization",
+    title: "PSP Disclosure and Authorization",
+    description: "Review the required PSP disclosure and authorization below. You alone must acknowledge and sign this request before Sigma can obtain a PSP report."
+  },
+  mvr: {
+    field: "mvr_authorization",
+    title: "MVR and CDLIS Authorization",
+    description: "Review the motor-vehicle record and CDLIS authorization below. You alone must acknowledge and sign this request before Sigma can request your records."
+  }
+};
 
 function applicationDateValue() {
   return getField("application_date")?.value || today;
@@ -124,11 +142,50 @@ function smartScrollIntoView(element, block = "start") {
   }
 }
 
+function isConsentRequestMode() {
+  return Boolean(consentRequests[requestMode]);
+}
+
+function visibleAuthorizationItems() {
+  return [...document.querySelectorAll("[data-authorization-item]")].filter((item) => !item.hidden);
+}
+
+function configureRequestMode() {
+  const requested = new URLSearchParams(window.location.search).get("request");
+  requestMode = consentRequests[requested] ? requested : "";
+  if (!isConsentRequestMode()) return;
+
+  const definition = consentRequests[requestMode];
+  wizard.classList.add("is-consent-request");
+  wizard.dataset.requestType = requestMode;
+  document.body.dataset.requestType = requestMode;
+  const requestField = getField("request_type");
+  if (requestField) requestField.value = requestMode;
+  if (requestPanel) {
+    requestPanel.classList.remove("is-hidden");
+    requestPanel.querySelector("[data-request-kicker]").textContent = "Requested consent";
+    requestPanel.querySelector("[data-request-title]").textContent = definition.title;
+    requestPanel.querySelector("[data-request-description]").textContent = definition.description;
+  }
+  document.querySelector("[data-sign-kicker]").textContent = "Requested consent";
+  document.querySelector("[data-sign-subtitle]").textContent = "Only this consent is requested. Review it, acknowledge it, and sign it yourself.";
+  document.querySelectorAll("[data-authorization-item]").forEach((item) => {
+    item.hidden = item.dataset.authorizationType !== requestMode;
+  });
+  const selected = document.querySelector(`[data-authorization-type="${requestMode}"]`);
+  if (selected) setAuthorizationOpen(selected, true);
+  if (stepTotal) stepTotal.textContent = "1";
+}
+
 function showWizard() {
   intro.classList.add("is-hidden");
   wizard.classList.remove("is-hidden");
   restoreDraft();
-  showStage(0);
+  if (isConsentRequestMode()) {
+    const requestField = getField("request_type");
+    if (requestField) requestField.value = requestMode;
+  }
+  showStage(isConsentRequestMode() ? stages.length - 1 : 0);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -145,11 +202,13 @@ function showStage(index) {
     marker.classList.toggle("is-complete", position < stageIndex);
   });
 
-  backButton.disabled = stageIndex === 0;
-  nextButton.classList.toggle("is-hidden", stageIndex === stages.length - 1);
+  const consentRequest = isConsentRequestMode();
+  backButton.disabled = stageIndex === 0 || consentRequest;
+  backButton.classList.toggle("is-hidden", consentRequest);
+  nextButton.classList.toggle("is-hidden", consentRequest || stageIndex === stages.length - 1);
   submitButton.classList.toggle("is-hidden", stageIndex !== stages.length - 1);
-  progress.style.width = `${(stageIndex / (stages.length - 1)) * 100}%`;
-  currentStep.textContent = String(stageIndex + 1);
+  progress.style.width = `${consentRequest ? 100 : (stageIndex / (stages.length - 1)) * 100}%`;
+  currentStep.textContent = consentRequest ? "1" : String(stageIndex + 1);
   if (stageIndex === 2 || stageIndex === 3) updateHistoryCoverage();
   if (stageIndex === stages.length - 1) {
     renderReview();
@@ -240,6 +299,28 @@ function validateDocumentStage() {
 function validateCurrentStage() {
   const stage = stages[stageIndex];
   stage.querySelectorAll("input, select, textarea").forEach((field) => field.setCustomValidity(""));
+  if (isConsentRequestMode()) {
+    const definition = consentRequests[requestMode];
+    const authorization = getField(definition.field);
+    const signature = getField("signature_name");
+    const certification = getField("certification");
+    if (!authorization?.checked) {
+      authorization?.setCustomValidity(`Review and acknowledge the ${definition.title}.`);
+      focusInvalid(authorization);
+      return false;
+    }
+    if (!signature?.value.trim()) {
+      signature?.setCustomValidity("Type your full legal name to sign.");
+      focusInvalid(signature);
+      return false;
+    }
+    if (!certification?.checked) {
+      certification?.setCustomValidity("Check the certification to sign this consent.");
+      focusInvalid(certification);
+      return false;
+    }
+    return true;
+  }
   if (stageIndex === 0) {
     updateLicenseCoverage(false);
     reconcileLicenses();
@@ -251,7 +332,7 @@ function validateCurrentStage() {
 function safeDraftData() {
   const values = {};
   form.querySelectorAll("input, select, textarea").forEach((field) => {
-    if (!field.name || field.type === "file" || field.type === "password" || field.hasAttribute("data-sensitive")) return;
+    if (!field.name || field.type === "file" || field.type === "password" || field.hasAttribute("data-sensitive") || field.hasAttribute("data-admin-control")) return;
     if (field.matches("[data-indexed-checkbox]")) {
       if (!values[field.name]) values[field.name] = [];
       values[field.name].push(field.checked);
@@ -1050,7 +1131,7 @@ function advanceAuthorization(input) {
   const item = input.closest("[data-authorization-item]");
   if (!item || !input.checked) return;
   setAuthorizationOpen(item, false);
-  const items = [...document.querySelectorAll("[data-authorization-item]")];
+  const items = visibleAuthorizationItems();
   const next = items.slice(items.indexOf(item) + 1).find((candidate) => !candidate.querySelector("[data-authorization-ack]")?.checked);
   if (next) {
     setAuthorizationOpen(next, true);
@@ -1061,7 +1142,7 @@ function advanceAuthorization(input) {
 }
 
 function ensureNextAuthorizationOpen() {
-  const items = [...document.querySelectorAll("[data-authorization-item]")];
+  const items = visibleAuthorizationItems();
   if (!items.length || items.some((item) => item.classList.contains("is-open"))) return;
   const next = items.find((item) => !item.querySelector("[data-authorization-ack]")?.checked);
   if (next) setAuthorizationOpen(next, true);
@@ -1075,7 +1156,7 @@ function updateDocumentIdentity() {
     element.textContent = `Applicant: ${name} · Application date: ${date}`;
   });
   const signature = getField("signature_name");
-  if (signature && !signature.value && name !== "Not yet provided") signature.value = name;
+  if (signature && !signature.value && name !== "Not yet provided" && !isConsentRequestMode()) signature.value = name;
 }
 
 function timelineIntervals(kind) {
@@ -1153,6 +1234,35 @@ function updateHistoryCoverage(report = false) {
 function renderReview() {
   const value = (name) => getField(name)?.value?.trim() || "Not provided";
   const selected = (name) => form.querySelector(`[name="${name}"]:checked`)?.value || "Not provided";
+  if (isConsentRequestMode()) {
+    const definition = consentRequests[requestMode];
+    const cards = [
+      ["Requested form", definition.title, 5],
+      ["Authorization", getField(definition.field)?.checked ? "Complete" : "Needs attention", 5],
+      ["Electronic signature", getField("signature_name")?.value?.trim() && getField("certification")?.checked ? "Complete" : "Needs attention", 5]
+    ];
+    review.replaceChildren(...cards.map(([label, detail, stage]) => {
+      const article = document.createElement("article");
+      const icon = document.createElement("i");
+      const heading = document.createElement("span");
+      const text = document.createElement("strong");
+      const complete = detail && !/Needs attention/.test(detail);
+      article.className = complete ? "is-complete" : "needs-attention";
+      icon.textContent = complete ? "✓" : "[!]";
+      heading.textContent = label;
+      text.textContent = detail;
+      article.append(icon, heading, text);
+      if (!complete) {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.dataset.goStage = String(stage);
+        edit.textContent = "Edit";
+        article.append(edit);
+      }
+      return article;
+    }));
+    return;
+  }
   const fullName = [value("legal_first_name"), value("legal_middle_name"), value("legal_last_name")]
     .filter((part) => part !== "Not provided").join(" ") || "Not provided";
   const cards = [
@@ -1202,6 +1312,39 @@ function fileSlotSatisfied(name) {
 function renderMissingItems() {
   if (!missingList) return [];
   const hasValue = (name) => Boolean(getField(name)?.value?.trim());
+  if (isConsentRequestMode()) {
+    const definition = consentRequests[requestMode];
+    const items = [
+      { missing: !getField(definition.field)?.checked, label: `${definition.title} has not been acknowledged`, action: "Review", stage: 5 },
+      { missing: !hasValue("signature_name"), label: "Electronic signature is missing", action: "Sign", stage: 5 },
+      { missing: !getField("certification")?.checked, label: "Consent certification is not signed", action: "Sign", stage: 5 }
+    ].filter((item) => item.missing);
+    if (!items.length) {
+      const complete = document.createElement("div");
+      complete.className = "missing-item is-complete";
+      complete.innerHTML = "<span>✓</span><strong>This consent is ready to submit.</strong>";
+      missingList.replaceChildren(complete);
+    } else {
+      missingList.replaceChildren(...items.map((item) => {
+        const row = document.createElement("div");
+        row.className = "missing-item";
+        const icon = document.createElement("span");
+        const label = document.createElement("strong");
+        const button = document.createElement("button");
+        icon.textContent = "!";
+        label.textContent = item.label;
+        button.type = "button";
+        button.dataset.goStage = String(item.stage);
+        button.textContent = item.action;
+        row.append(icon, label, button);
+        return row;
+      }));
+    }
+    submitButton.innerHTML = items.length
+      ? `Submit signed ${requestMode.toUpperCase()} consent <span aria-hidden="true">→</span>`
+      : `Submit signed ${requestMode.toUpperCase()} consent <span aria-hidden="true">→</span>`;
+    return items;
+  }
   const hasSelection = (name) => Boolean(form.querySelector(`[name="${CSS.escape(name)}"]:checked`));
   const contactExplanationMissing = [...form.querySelectorAll("[data-do-not-contact]:checked")].some((checkbox) => {
     return !checkbox.closest(".employment-entry, .older-employment-entry")?.querySelector("[data-contact-explanation]")?.value.trim();
@@ -1260,7 +1403,7 @@ function renderMissingItems() {
 function serializeFields() {
   const fields = {};
   form.querySelectorAll("input, select, textarea").forEach((field) => {
-    if (!field.name || field.type === "file" || field.disabled) return;
+    if (!field.name || field.type === "file" || field.disabled || field.hasAttribute("data-admin-control")) return;
     if (field.matches("[data-indexed-checkbox]")) {
       if (!fields[field.name]) fields[field.name] = [];
       fields[field.name].push(field.checked);
@@ -1434,11 +1577,43 @@ function setWorking(action, working) {
   saveButton.disabled = working;
   submitButton.disabled = working;
   if (working) {
-    saveState.innerHTML = `<i></i> ${action === "submit" ? "Submitting" : "Saving"}…`;
+    const label = action === "submit" ? "Submitting" : action === "send_request" ? "Sending" : "Saving";
+    saveState.innerHTML = `<i></i> ${label}…`;
   }
 }
 
-async function sendToBackend(action) {
+function setAdminSendStatus(message, isError = false) {
+  if (!adminSendStatus) return;
+  adminSendStatus.textContent = message;
+  adminSendStatus.classList.toggle("is-error", isError);
+}
+
+function adminRecipientEmail() {
+  return String(adminRecipient?.value || getField("applicant_email")?.value || "").trim().toLowerCase();
+}
+
+async function sendDriverRequest(requestType) {
+  const recipient = adminRecipientEmail();
+  const adminKey = document.querySelector('[name="admin_access_key"]')?.value || "";
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    setAdminSendStatus("Enter the driver’s valid email address before sending.", true);
+    adminRecipient?.focus();
+    return;
+  }
+  if (!adminKey) {
+    setAdminSendStatus("Enter the administrator key before sending.", true);
+    document.querySelector('[name="admin_access_key"]')?.focus();
+    return;
+  }
+  const emailField = getField("applicant_email");
+  if (emailField && !emailField.value) emailField.value = recipient;
+  const requestField = getField("request_type");
+  if (requestField) requestField.value = requestType;
+  setAdminSendStatus("Creating the private driver link and sending email…");
+  await sendToBackend("send_request", { recipientEmail: recipient, requestType });
+}
+
+async function sendToBackend(action, request = {}) {
   if (!config.appsScriptUrl) {
     resultPanel.classList.remove("is-hidden");
     resultPanel.classList.add("is-error");
@@ -1454,6 +1629,8 @@ async function sendToBackend(action) {
       schemaVersion: config.schemaVersion || "2.0.0",
       parentFolderId: config.parentFolderId,
       adminKey: document.querySelector('[name="admin_access_key"]')?.value || "",
+      recipientEmail: request.recipientEmail || "",
+      requestType: request.requestType || "",
       pageOrigin: window.location.origin,
       fields: serializeFields(),
       files,
@@ -1472,6 +1649,7 @@ async function sendToBackend(action) {
     backendForm.submit();
   } catch (error) {
     setWorking(action, false);
+    if (action === "send_request") setAdminSendStatus(error.message || "Could not send the driver request.", true);
     resultPanel.classList.remove("is-hidden");
     resultPanel.classList.add("is-error");
     resultPanel.innerHTML = `<strong>Could not ${action}.</strong><p>${error.message}</p>`;
@@ -1496,6 +1674,22 @@ function handleBackendMessage(event) {
       pendingBackendAction = "";
       return;
     }
+    if (pendingBackendAction === "send_request") {
+      setField("application_id", data.applicationId);
+      setField("resume_token", data.resumeToken);
+      saveDraftLocal();
+      const title = data.requestType === "psp"
+        ? "PSP consent email sent."
+        : data.requestType === "mvr"
+          ? "MVR/CDLIS consent email sent."
+          : "Incomplete application email sent.";
+      resultPanel.innerHTML = `<strong>${title}</strong><p>Sent to ${data.recipientEmail || "the driver"}. The driver link is private and the driver must complete and sign the request personally.</p>`;
+      setAdminSendStatus(`${title} Sent to ${data.recipientEmail || "the driver"}.`);
+      saveState.innerHTML = "<i></i> Driver request sent";
+      pendingBackendAction = "";
+      resultPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     setField("application_id", data.applicationId);
     setField("resume_token", data.resumeToken);
     saveDraftLocal();
@@ -1507,6 +1701,7 @@ function handleBackendMessage(event) {
   } else {
     resultPanel.classList.add("is-error");
     resultPanel.innerHTML = `<strong>Could not ${pendingBackendAction}.</strong><p>${data.message || "The save service returned an error."}</p>`;
+    if (pendingBackendAction === "send_request") setAdminSendStatus(data.message || "Could not send the driver request.", true);
   }
   resultPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   pendingBackendAction = "";
@@ -1521,6 +1716,8 @@ function initializeMode() {
     saveButton.textContent = "Save prefill";
     startButton.textContent = "Start administrator prefill →";
   }
+  configureRequestMode();
+  if (isConsentRequestMode()) startButton.textContent = "Review requested consent →";
   const resumeToken = params.get("resume");
   if (resumeToken) {
     setField("resume_token", resumeToken);
@@ -1675,12 +1872,15 @@ form.addEventListener("click", (event) => {
     const show = panel.classList.toggle("is-hidden") === false;
     help.setAttribute("aria-expanded", String(show));
   }
+
+  const sendRequest = event.target.closest("[data-send-request]");
+  if (sendRequest) sendDriverRequest(sendRequest.dataset.sendRequest || "application");
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   showStage(stages.length - 1);
-  validateCurrentStage();
+  if (!validateCurrentStage()) return;
   renderReview();
   renderMissingItems();
   await sendToBackend("submit");

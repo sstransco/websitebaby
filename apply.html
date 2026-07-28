@@ -31,7 +31,7 @@
         </div>
         <div class="admin-intro is-hidden" data-admin-intro>
           <strong>Administrator prefill mode</strong>
-          <p>Upload documents and complete any known fields. Saving creates an applicant folder and an opaque continuation link.</p>
+          <p>Complete only what you know. You can save a prefill or send the driver a private application, PSP, or MVR/CDLIS link for their own completion and signature.</p>
         </div>
       </div>
       <aside class="ready-card">
@@ -71,14 +71,22 @@
       </header>
 
       <div class="admin-bar is-hidden" data-admin-bar>
-        <div><span>Administrator prefill</span><p>Complete known information, upload available documents, then choose “Save prefill.”</p></div>
-        <label>Admin key <input type="password" name="admin_access_key" form="driver-application" autocomplete="off" data-sensitive></label>
+        <div><span>Administrator prefill</span><p>Complete what you know, then send the driver an incomplete application or a single consent for their own review and signature.</p></div>
+        <label>Admin key <input type="password" name="admin_access_key" form="driver-application" autocomplete="off" data-sensitive data-admin-control></label>
+        <label>Driver email <input type="email" name="admin_recipient_email" form="driver-application" autocomplete="email" placeholder="driver@example.com" data-admin-control data-admin-recipient></label>
+        <div class="admin-send-actions" aria-label="Send driver request">
+          <button class="small-action" type="button" data-send-request="application">Send incomplete application</button>
+          <button class="small-action" type="button" data-send-request="psp">Send PSP consent only</button>
+          <button class="small-action" type="button" data-send-request="mvr">Send MVR/CDLIS consent only</button>
+        </div>
+        <p class="admin-send-status" data-admin-send-status>Use the driver’s email, then choose what to send. The driver provides the remaining information and signs personally.</p>
       </div>
 
       <form id="driver-application" class="driver-application" autocomplete="on" novalidate>
         <input type="hidden" name="application_id">
         <input type="hidden" name="resume_token">
         <input type="hidden" name="application_mode" value="driver">
+        <input type="hidden" name="request_type">
         <input type="hidden" name="schema_version" value="2.0.0">
 
         <div class="wizard-body">
@@ -124,6 +132,7 @@
                   <label class="field"><span>Last name <b>*</b></span><input type="text" name="legal_last_name" autocomplete="family-name" required data-barcode="lastName"></label>
                   <label class="field"><span>Date of birth <b>*</b></span><input type="date" name="date_of_birth" autocomplete="bday" required data-barcode="dateOfBirth"></label>
                   <label class="field"><span>Social Security number <b>*</b></span><input type="password" name="ssn" inputmode="numeric" autocomplete="off" placeholder="XXX-XX-XXXX" required data-sensitive></label>
+                  <label class="field"><span>Email address</span><input type="email" name="applicant_email" autocomplete="email" inputmode="email"></label>
                   <label class="field"><span>Application date</span><input type="date" name="application_date" data-application-date></label>
                 </div>
               </fieldset>
@@ -329,11 +338,17 @@
           <section class="form-stage" data-stage="5" aria-labelledby="sign-title" hidden>
             <div class="stage-heading">
               <div>
-                <p>Review &amp; sign</p>
+                <p data-sign-kicker>Review &amp; sign</p>
                 <h2 id="sign-title">Review and Sign</h2>
-                <span>Resolve what you can, save for later if needed, then review each authorization in order.</span>
+                <span data-sign-subtitle>Resolve what you can, save for later if needed, then review each authorization in order.</span>
               </div>
             </div>
+
+            <section class="request-panel is-hidden" data-request-panel aria-live="polite">
+              <p data-request-kicker>Requested consent</p>
+              <h3 data-request-title>Authorization request</h3>
+              <span data-request-description>Review the requested form, acknowledge it, then sign below.</span>
+            </section>
 
             <section class="completion-panel" aria-labelledby="missing-title">
               <div>
@@ -395,7 +410,7 @@
                   </div>
                 </article>
 
-                <article class="authorization-item" data-authorization-item>
+                <article class="authorization-item" data-authorization-item data-authorization-type="mvr">
                   <button class="authorization-header" type="button" data-authorization-toggle aria-expanded="false"><span>04</span><div><strong>MVR and CDLIS authorization</strong><small>Driver-record inquiries</small></div><b>+</b></button>
                   <div class="authorization-body" hidden>
                     <div class="inline-document">
@@ -409,7 +424,7 @@
                   </div>
                 </article>
 
-                <article class="authorization-item" data-authorization-item>
+                <article class="authorization-item" data-authorization-item data-authorization-type="psp">
                   <button class="authorization-header" type="button" data-authorization-toggle aria-expanded="false"><span>05</span><div><strong>PSP disclosure and authorization</strong><small>Mandatory FMCSA language - stand-alone item</small></div><b>+</b></button>
                   <div class="authorization-body" hidden>
                     <div class="inline-document standalone-document psp-document">
@@ -484,7 +499,7 @@
 
         <footer class="wizard-footer">
           <button class="footer-button footer-button-back" type="button" data-back disabled><span aria-hidden="true">←</span> Back</button>
-          <p><span data-current-step>1</span> of 6</p>
+          <p><span data-current-step>1</span> of <span data-step-total>6</span></p>
           <button class="footer-button footer-button-next" type="button" data-next>Continue <span aria-hidden="true">→</span></button>
           <button class="footer-button footer-button-next is-hidden" type="submit" data-submit>Submit application <span aria-hidden="true">→</span></button>
         </footer>

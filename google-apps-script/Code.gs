@@ -28,8 +28,87 @@ function routeRequest_(payload) {
   if (payload.schemaVersion !== SIGMA_CONFIG.schemaVersion) throw new Error("Unsupported application schema.");
   if (payload.action === "load") return loadApplication_(payload);
   if (payload.action === "regenerate") return regenerateSignedDocuments_(payload);
+  if (payload.action === "send_request") return sendDriverRequest_(payload);
   if (payload.action !== "save" && payload.action !== "submit") throw new Error("Unsupported action.");
   return saveApplication_(payload);
+}
+
+function sendDriverRequest_(payload) {
+  validateAdminKey_(payload.adminKey);
+  var requestType = String(payload.requestType || "application").toLowerCase();
+  if (["application", "psp", "mvr"].indexOf(requestType) === -1) throw new Error("Unsupported driver request type.");
+  var recipient = normalizeRecipientEmail_(payload.recipientEmail || (payload.fields && payload.fields.applicant_email));
+  var fields = payload.fields || {};
+  fields.application_mode = "admin";
+  fields.request_type = requestType;
+  if (!fields.applicant_email) fields.applicant_email = recipient;
+
+  var saved = saveApplication_({
+    action: "save",
+    schemaVersion: payload.schemaVersion,
+    adminKey: payload.adminKey,
+    pageOrigin: payload.pageOrigin,
+    fields: fields,
+    files: payload.files || [],
+    audit: payload.audit || {}
+  });
+  if (!saved.continuationUrl) throw new Error("Could not create the private driver link.");
+  var driverLink = saved.continuationUrl;
+  if (requestType !== "application") driverLink += "&request=" + encodeURIComponent(requestType);
+  sendDriverRequestEmail_(recipient, requestType, fields, driverLink);
+
+  return {
+    ok: true,
+    applicationId: saved.applicationId,
+    resumeToken: saved.resumeToken,
+    continuationUrl: saved.continuationUrl,
+    folderUrl: saved.folderUrl,
+    recipientEmail: recipient,
+    requestType: requestType,
+    driverLink: driverLink,
+    status: "sent"
+  };
+}
+
+function normalizeRecipientEmail_(value) {
+  var email = String(value || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid driver email address.");
+  return email;
+}
+
+function sendDriverRequestEmail_(recipient, requestType, fields, driverLink) {
+  var firstName = String(fields.legal_first_name || "there").trim();
+  var details = {
+    application: {
+      subject: "Sigma Squared driver application",
+      title: "your driver application",
+      instruction: "Please complete the remaining information, review the notices, and sign the application yourself."
+    },
+    psp: {
+      subject: "Sigma Squared PSP disclosure and authorization",
+      title: "your PSP disclosure and authorization",
+      instruction: "Please review the stand-alone PSP disclosure and authorization, then acknowledge and sign it yourself."
+    },
+    mvr: {
+      subject: "Sigma Squared MVR and CDLIS authorization",
+      title: "your MVR and CDLIS authorization",
+      instruction: "Please review the motor-vehicle record and CDLIS authorization, then acknowledge and sign it yourself."
+    }
+  }[requestType];
+  var body = [
+    "Hi " + firstName + ",",
+    "",
+    "Sigma Squared Transport Corporation has sent " + details.title + ".",
+    details.instruction,
+    "",
+    "Open your private link:",
+    driverLink,
+    "",
+    "Do not forward this link. If you did not expect this email, contact dispatch@sstransco.com.",
+    "",
+    "Sigma Squared Transport Corporation"
+  ].join("\n");
+  MailApp.sendEmail({ to: recipient, subject: details.subject, body: body, name: SIGMA_CONFIG.companyName });
 }
 
 function regenerateSignedDocuments_(payload) {
@@ -89,7 +168,9 @@ function saveApplication_(payload) {
   var uploadSummary = saveUploads_(folder, payload.files || [], applicationId, fields);
   var signedPacket = null;
   if (payload.action === "submit") {
-    signedPacket = createSignedPacket_(folder, fields, payload.audit || {}, applicationId);
+    signedPacket = isConsentRequest_(fields)
+      ? createConsentRequestPacket_(folder, fields, payload.audit || {}, applicationId)
+      : createSignedPacket_(folder, fields, payload.audit || {}, applicationId);
   }
 
   PropertiesService.getScriptProperties().setProperty("resume:" + resumeToken, sheet.getId());
@@ -119,6 +200,10 @@ function loadApplication_(payload) {
     fields: readFields_(spreadsheet),
     savedFiles: readUploadSummary_(spreadsheet)
   };
+}
+
+function isConsentRequest_(fields) {
+  return fields && (fields.request_type === "psp" || fields.request_type === "mvr");
 }
 
 function validateAdminKey_(provided) {
@@ -380,6 +465,21 @@ function createSignedPacket_(folder, fields, audit, applicationId) {
   return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket };
 }
 
+function createConsentRequestPacket_(folder, fields, audit, applicationId) {
+  var requestType = String(fields.request_type || "");
+  var fileKey = requestType === "psp" ? "psp_authorization" : "mvr_cdlis_authorization";
+  var auditId = Utilities.getUuid();
+  var canonical = JSON.stringify({
+    fields: fields,
+    documentVersions: audit.documentVersions || {},
+    documentDigests: audit.documentDigests || {}
+  });
+  var digest = hexDigest_(canonical);
+  var forms = createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest, fileKey);
+  if (!forms.length) throw new Error("The requested consent was not acknowledged.");
+  return { auditId: auditId, digest: digest, url: forms[0].url, fileId: forms[0].fileId, forms: forms, printablePacket: null };
+}
+
 function signedDocumentDefinitions_() {
   return [
     {
@@ -470,12 +570,13 @@ function signedDocumentDefinitions_() {
   ];
 }
 
-function createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest) {
+function createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest, onlyFileKey) {
   var signedFolder = findOrCreateFolder_(folder, "Signed Forms");
   var prefix = uploadNamePart_(fields.legal_last_name || applicationId) + "," +
     uploadNamePart_(fields.legal_first_name || "PENDING");
   var forms = [];
   signedDocumentDefinitions_().forEach(function(definition) {
+    if (onlyFileKey && definition.fileKey !== onlyFileKey) return;
     if (!fields[definition.field]) return;
     var name = sanitizeFileName_(prefix + "_" + definition.fileKey + "_SIGNED.pdf");
     var existing = signedFolder.getFilesByName(name);

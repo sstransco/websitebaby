@@ -24,7 +24,17 @@ Under Shared Drive folder `Applicants` (`18HXcfD2LWVVcw4HL0n2i3vmtNVLfwfjZ`):
   - `Uploads/` with normalized, unambiguous year-first PDF filenames such as `DESHAVER,MARVIN_cdlfront_ISS_2024_01_02_EXP_2029_05_06.pdf`, `DESHAVER,MARVIN_cdlback_ISS_2024_01_02_EXP_2029_05_06.pdf`, `DESHAVER,MARVIN_medicalcard_EXP_2027_08_22.pdf`, and numbered prior-CDL files
   - `Signed_Application_and_Authorizations` Google Doc on submit
   - `Signed_Application_and_Authorizations.pdf` on submit
-  - `Signed Forms/` with individual signed PDFs for application certification, notices, authorizations, PSP, electronic signature consent, and Clearinghouse limited-query consent. Each PDF includes the typed e-signature and audit trail.
+- `Signed Forms/` with individual signed PDFs for application certification, notices, authorizations, PSP, electronic signature consent, and Clearinghouse limited-query consent. Each PDF includes the typed e-signature and audit trail.
+
+## Administrator delivery flow
+
+Open `https://sstransco.com/apply.html?mode=admin`, enter the `ADMIN_PREFILL_KEY`, the driver’s email address, and any information or documents already available. The administrator can then:
+
+- **Send incomplete application** — saves the prefilled draft and emails the driver an opaque continuation link. The driver supplies remaining information and signs personally.
+- **Send PSP consent only** — emails an opaque link that shows only the stand-alone PSP disclosure and authorization for the driver’s own acknowledgement and signature.
+- **Send MVR/CDLIS consent only** — emails an opaque link that shows only the MVR and CDLIS authorization for the driver’s own acknowledgement and signature.
+
+The driver-request email goes only to the entered driver address. The existing administrative save/submit notification remains hard-coded to `dispatch@sstransco.com`.
 
 Uploading a new file for the same document slot moves the prior Drive file to Trash and replaces its row in the `uploads` tab.
 
