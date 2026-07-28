@@ -1799,6 +1799,11 @@ nextButton.addEventListener("click", () => {
   if (validateCurrentStage()) showStage(stageIndex + 1);
 });
 saveButton.addEventListener("click", () => sendToBackend("save"));
+// Admin send buttons live in the admin bar, outside <form>, so the form-level
+// click delegation never sees them — bind them directly.
+document.querySelectorAll("[data-send-request]").forEach((button) => {
+  button.addEventListener("click", () => sendDriverRequest(button.dataset.sendRequest || "application"));
+});
 window.addEventListener("message", handleBackendMessage);
 
 form.addEventListener("input", (event) => {
