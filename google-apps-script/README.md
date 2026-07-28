@@ -17,7 +17,7 @@ This Apps Script is the credential boundary between the public application page 
 
 ## What the service creates
 
-Under Shared Drive folder `04 Driver Qualification Files – Active and Pending` (`1wlZm1bQTmLEGYlwkjTUEnCAj4KjfpKvy`):
+Under Shared Drive folder `Applicants` (`18HXcfD2LWVVcw4HL0n2i3vmtNVLfwfjZ`):
 
 - `LASTNAME,FIRSTNAME/`
   - `application_data` Google Sheet with `fields`, `metadata`, `audit_log`, and `uploads` tabs
