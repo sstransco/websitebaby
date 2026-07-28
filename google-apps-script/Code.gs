@@ -3,11 +3,58 @@ var SIGMA_CONFIG = {
   companyName: "Sigma Squared Transport Corporation",
   carrierAddress: "1101 N Cleveland Ave Apt 14, Sioux Falls, SD 57103",
   usdot: "4473629",
-  schemaVersion: "2.0.0"
+  mcNumber: "1547581",
+  schemaVersion: "2.0.0",
+  siteApplicationUrl: "https://sstransco.com/apply.html"
 };
 
 function doGet() {
   return HtmlService.createHtmlOutput("Sigma Squared driver-application save service");
+}
+
+/**
+ * Run once from the editor after first deploy. Sets non-secret defaults and
+ * reports whether the admin key is configured. It never overwrites an existing
+ * value, so it is safe to re-run.
+ */
+function initializeScriptProperties() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("ALLOWED_APPLICATION_ORIGINS")) {
+    props.setProperty("ALLOWED_APPLICATION_ORIGINS", "https://sstransco.com,https://www.sstransco.com");
+  }
+  if (!props.getProperty("SITE_APPLICATION_URL")) {
+    props.setProperty("SITE_APPLICATION_URL", SIGMA_CONFIG.siteApplicationUrl);
+  }
+  var generated = false;
+  if (!props.getProperty("ADMIN_PREFILL_KEY")) {
+    props.setProperty("ADMIN_PREFILL_KEY", (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ""));
+    generated = true;
+  }
+  // Install the drag-drop watcher (step 3) so one Run does the whole setup.
+  var triggerMessage;
+  try {
+    triggerMessage = ensureIngestTrigger_();
+  } catch (triggerError) {
+    triggerMessage = "Trigger not installed: " + triggerError;
+  }
+
+  // Backfill / process existing folders now (step 2), guarded so setup still succeeds.
+  var ingestMessage;
+  try {
+    var result = ingestDriveDropIns();
+    ingestMessage = "Initial ingest processed " + (result.processedFolders || 0) + " folder(s) with new files.";
+  } catch (ingestError) {
+    ingestMessage = "Initial ingest deferred to the scheduled watcher (" + ingestError + ").";
+  }
+
+  var message = "Origins: " + props.getProperty("ALLOWED_APPLICATION_ORIGINS") +
+    "\nSite URL: " + props.getProperty("SITE_APPLICATION_URL") +
+    "\nADMIN_PREFILL_KEY " + (generated ? "generated: " + props.getProperty("ADMIN_PREFILL_KEY") : "already set (unchanged).") +
+    "\n" + triggerMessage +
+    "\n" + ingestMessage +
+    "\n\nUse the key in apply.html?mode=admin. Rotate it any time in Project Settings → Script properties.";
+  Logger.log(message);
+  return message;
 }
 
 function doPost(event) {
@@ -29,6 +76,7 @@ function routeRequest_(payload) {
   if (payload.action === "load") return loadApplication_(payload);
   if (payload.action === "regenerate") return regenerateSignedDocuments_(payload);
   if (payload.action === "send_request") return sendDriverRequest_(payload);
+  if (payload.action === "ingest") { validateAdminKey_(payload.adminKey); return ingestDriveDropIns(); }
   if (payload.action !== "save" && payload.action !== "submit") throw new Error("Unsupported action.");
   return saveApplication_(payload);
 }
@@ -461,13 +509,19 @@ function createSignedPacket_(folder, fields, audit, applicationId) {
   while (existing.hasNext()) existing.next().setTrashed(true);
   var pdfFile = folder.createFile(pdf);
   var forms = createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest);
+  if (fields.mvr_authorization || fields.mvr_release_consent) {
+    try {
+      forms.push(createMvrReleaseConsentPdf_(folder, fields, audit, applicationId, auditId, digest));
+    } catch (mvrError) {
+      console.warn("MVR release consent PDF skipped: " + mvrError);
+    }
+  }
   var printablePacket = createPrintableApplicationPacket_(folder, fields, audit, applicationId, auditId, digest);
   return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket };
 }
 
 function createConsentRequestPacket_(folder, fields, audit, applicationId) {
   var requestType = String(fields.request_type || "");
-  var fileKey = requestType === "psp" ? "psp_authorization" : "mvr_cdlis_authorization";
   var auditId = Utilities.getUuid();
   var canonical = JSON.stringify({
     fields: fields,
@@ -475,9 +529,131 @@ function createConsentRequestPacket_(folder, fields, audit, applicationId) {
     documentDigests: audit.documentDigests || {}
   });
   var digest = hexDigest_(canonical);
-  var forms = createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest, fileKey);
+  if (requestType === "mvr") {
+    var mvr = createMvrReleaseConsentPdf_(folder, fields, audit, applicationId, auditId, digest);
+    return { auditId: auditId, digest: digest, url: mvr.url, fileId: mvr.fileId, forms: [mvr], printablePacket: null, documentId: mvr.documentId };
+  }
+  var forms = createSignedFormPdfs_(folder, fields, audit, applicationId, auditId, digest, "psp_authorization");
   if (!forms.length) throw new Error("The requested consent was not acknowledged.");
   return { auditId: auditId, digest: digest, url: forms[0].url, fileId: forms[0].fileId, forms: forms, printablePacket: null };
+}
+
+function mvrDocumentId_(applicationId, auditId) {
+  var stamp = Utilities.formatDate(new Date(), "America/Chicago", "yyyyMMddHHmmss");
+  var suffix = String(auditId || Utilities.getUuid()).replace(/[^a-z0-9]/gi, "").slice(0, 8).toUpperCase();
+  return "SIG-MVR-" + stamp + "-" + suffix;
+}
+
+function createMvrReleaseConsentPdf_(folder, fields, audit, applicationId, auditId, digest) {
+  var signedFolder = findOrCreateFolder_(folder, "Signed Forms");
+  var prefix = uploadNamePart_(fields.legal_last_name || applicationId) + "," +
+    uploadNamePart_(fields.legal_first_name || "PENDING");
+  var name = sanitizeFileName_(prefix + "_mvr_release_consent_SIGNED.pdf");
+  var documentId = mvrDocumentId_(applicationId, auditId);
+
+  var doc = DocumentApp.create("MVR Release Consent Form");
+  var driveFile = DriveApp.getFileById(doc.getId());
+  var body = doc.getBody();
+  body.clear();
+  prepareOfficialBody_(body);
+
+  var idLine = body.appendParagraph("Document ID: " + documentId);
+  idLine.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+  styleText_(idLine, 8, false, "#666666");
+  idLine.setSpacingAfter(20);
+
+  var title = body.appendParagraph("MVR RELEASE CONSENT FORM");
+  title.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  styleText_(title, 15, true, "#000000");
+  title.setSpacingAfter(16);
+
+  appendLegalParagraph_(body, "In conjunction with my potential employment at " + SIGMA_CONFIG.companyName +
+    " (“the Company”), I, " + applicantName_(fields) +
+    " (applicant), consent to the release of my Motor Vehicle Records (MVR) to the Company. I understand the Company will use these records to evaluate my suitability to fulfill driving duties that may be related to the position for which I am applying. I also consent to the review, evaluation, and other use of any MVR I may have provided to the Company.");
+  appendLegalParagraph_(body, "This consent is given in satisfaction of Public Law 18 U.S.C. 2721 et seq., the “Federal Driver’s Privacy Protection Act,” and is intended to constitute “written consent” as required by that Act.");
+
+  body.appendHorizontalRule();
+  var sig = body.appendParagraph("");
+  sig.setSpacingBefore(10);
+  sig.appendText("Signed (applicant):  ");
+  var sigName = sig.appendText(answer_(fields.signature_name));
+  sigName.setBold(true).setForegroundColor("#1f4e79");
+  sig.editAsText().setFontFamily("Arial").setFontSize(11);
+  var sigMeta = body.appendParagraph("Electronically signed — typed signature adopted by the applicant with intent to sign.");
+  styleText_(sigMeta, 8, false, "#1f4e79");
+  var dateP = body.appendParagraph("Date:  " + humanDate_(fields.signature_date || fields.form_submission_date));
+  styleText_(dateP, 11, false, "#000000");
+  dateP.setSpacingBefore(6);
+  var dl = body.appendParagraph("Driver’s License Number:  " + answer_(fields.license_number) +
+    "          State:  " + answer_(fields.license_state));
+  styleText_(dl, 11, false, "#000000");
+  dl.setSpacingBefore(6);
+
+  var footer = body.appendParagraph(SIGMA_CONFIG.companyName + " · USDOT " + SIGMA_CONFIG.usdot + " · MC-" + SIGMA_CONFIG.mcNumber);
+  footer.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+  styleText_(footer, 8, false, "#666666");
+  footer.setSpacingBefore(24);
+
+  body.appendPageBreak();
+  appendMvrAuditTrail_(body, fields, audit, documentId, auditId, digest);
+
+  doc.saveAndClose();
+  var pdf = driveFile.getAs(MimeType.PDF).setName(name);
+  driveFile.setTrashed(true);
+  var existing = signedFolder.getFilesByName(name);
+  while (existing.hasNext()) existing.next().setTrashed(true);
+  var file = signedFolder.createFile(pdf);
+  return { name: name, url: file.getUrl(), fileId: file.getId(), documentId: documentId };
+}
+
+function appendMvrAuditTrail_(body, fields, audit, documentId, auditId, digest) {
+  var heading = body.appendParagraph("Audit Trail");
+  heading.setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+  styleText_(heading, 9, false, "#888888");
+  heading.setSpacingAfter(12);
+
+  var meta = body.appendTable([
+    ["TITLE", "MVR Release Consent Form"],
+    ["DOCUMENT ID", documentId],
+    ["DOCUMENT PAGES", "1"],
+    ["STATUS", "COMPLETED"],
+    ["TIME ZONE", audit.timezone || "America/Chicago"]
+  ]);
+  styleTable_(meta, false);
+
+  var signerName = answer_(fields.signature_name);
+  var signerEmail = String(fields.applicant_email || fields.email || "").trim();
+  var ip = String(audit.signerIp || "").trim();
+  var identity = signerName + (signerEmail ? " (" + signerEmail + ")" : "") + (ip ? "   IP: " + ip : "");
+  var started = humanDateTime_(audit.clientTimestamp) || humanDateTime_(new Date().toISOString());
+  var signed = humanDateTime_(fields.form_submitted_at_utc || audit.clientTimestamp) || started;
+  var completed = humanDateTime_(new Date().toISOString());
+
+  appendSectionTitle_(body, "Document History", "");
+  var history = body.appendTable([
+    ["Process Started", started, "The document was generated and presented to the applicant for electronic signature."],
+    ["Viewed", started, "Viewed by " + identity],
+    ["Signed", signed, "Signed by " + identity],
+    ["Process Completed", completed, "The document has been completed."]
+  ]);
+  styleTable_(history, false);
+
+  appendSectionTitle_(body, "Signature Verification", "");
+  var verify = body.appendTable([
+    ["Signer", signerName],
+    ["Signer email", signerEmail || "Not provided"],
+    ["Signer IP address", ip || "Not captured"],
+    ["Client timestamp", humanDateTime_(audit.clientTimestamp)],
+    ["Time zone", audit.timezone || "America/Chicago"],
+    ["User agent", audit.userAgent || "Not captured"],
+    ["Audit ID", auditId],
+    ["Content digest (SHA-256)", digest]
+  ]);
+  styleTable_(verify, false);
+
+  var note = body.appendParagraph("This record constitutes an electronic signature executed under the U.S. ESIGN Act (15 U.S.C. § 7001 et seq.) and the Uniform Electronic Transactions Act. The applicant adopted the typed signature above with intent to sign, and this audit trail documents the signing events for " + SIGMA_CONFIG.companyName + ".");
+  styleText_(note, 7, false, "#888888");
+  note.setSpacingBefore(10);
 }
 
 function signedDocumentDefinitions_() {

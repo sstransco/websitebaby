@@ -1,6 +1,6 @@
 window.SIGMA_APPLICATION_CONFIG = {
   schemaVersion: "2.0.0",
-  appsScriptUrl: "https://script.google.com/macros/s/AKfycbwnnOcPSEPX0B_cv-xwHZpRfjDBC4eqUZpAFsoBEy3vuFn1hw6oR4S5_o2tAcpmY3YJ8g/exec",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbyCErMvNJnj2aG0D2GBg1zBxTv8nAzJEUokSMJTkSvZ6BgbGSAJQyISeLFQLTGEkJ9R8g/exec",
   appsScriptOriginSuffix: ".script.googleusercontent.com",
   parentFolderId: "18HXcfD2LWVVcw4HL0n2i3vmtNVLfwfjZ",
   documentVersions: {
