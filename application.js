@@ -1678,10 +1678,16 @@ async function sendToBackend(action, request = {}) {
 function handleBackendMessage(event) {
   const data = event.data;
   if (!data || data.namespace !== "sigma-driver-application") return;
+  // Apps Script serves HtmlService responses from a sandbox host like
+  // "n-<hash>-0lu-script.googleusercontent.com" — note the hyphen before
+  // "script", so an exact ".script.googleusercontent.com" suffix never matches.
+  // Trust any https googleusercontent.com host (Google-controlled); the
+  // namespace check above already gates the payload.
+  let host = "";
+  try { host = new URL(event.origin).hostname; } catch { host = ""; }
   const trustedOrigin = config.appsScriptOrigin
     ? event.origin === config.appsScriptOrigin
-    : event.origin.startsWith("https://") &&
-      event.origin.endsWith(config.appsScriptOriginSuffix || ".script.googleusercontent.com");
+    : host === "googleusercontent.com" || host.endsWith(".googleusercontent.com");
   if (!trustedOrigin) return;
   setWorking(pendingBackendAction, false);
   resultPanel.classList.remove("is-hidden", "is-error");
