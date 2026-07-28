@@ -118,22 +118,15 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
   gap: 75px;
   color: white;
 }
-.app-eyebrow {
-  margin: 0 0 22px;
-  color: #8bdfff;
-  font-size: .75rem;
-  font-weight: 850;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-}
 .intro-copy h1 {
   margin: 0;
   max-width: 650px;
-  font-size: clamp(3.5rem, 8vw, 7.2rem);
-  line-height: .9;
-  letter-spacing: -.07em;
+  color: white;
+  font-size: clamp(2.25rem, 4vw, 3.65rem);
+  line-height: 1;
+  letter-spacing: -.045em;
 }
-.intro-copy > p:not(.app-eyebrow) {
+.intro-copy > p {
   max-width: 630px;
   margin: 28px 0 0;
   color: rgba(255,255,255,.68);
@@ -846,7 +839,7 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
       radial-gradient(circle at 88% 10%, rgba(71,157,255,.24), transparent 28%),
       linear-gradient(145deg, #061225, #0b3159);
   }
-  .intro-copy h1 { font-size: clamp(3.2rem, 17vw, 5rem); }
+  .intro-copy h1 { font-size: clamp(2rem, 10vw, 3rem); }
   .intro-actions { align-items: stretch; flex-direction: column; }
   .intro-actions > span { text-align: center; }
   .application-wizard { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
