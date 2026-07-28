@@ -543,6 +543,17 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
   font-weight: 850;
   cursor: pointer;
 }
+.small-action.is-highlighted {
+  background: #f5b301;
+  border-color: #d99a00;
+  color: #1a1300;
+  box-shadow: 0 0 0 3px rgba(245, 179, 1, .35);
+  animation: sendPulse 1.6s ease-in-out 3;
+}
+@keyframes sendPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 179, 1, .35); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 179, 1, .12); }
+}
 .prior-license-section { border-color: #eed782; background: #fffdf4; }
 .reconciliation-card {
   margin: 0 0 22px;

@@ -1,5 +1,6 @@
 node_modules/
 vendor/
+.clasp.json
 .DS_Store
 test-artifacts/
 __pycache__/

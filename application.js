@@ -52,6 +52,8 @@ let tesseractWorker;
 let pendingBackendAction = "";
 let activeOcrStatus = medicalStatus;
 let requestMode = "";
+let pendingSend = "";
+let signerIp = "";
 
 const consentRequests = {
   psp: {
@@ -187,6 +189,7 @@ function showWizard() {
   }
   showStage(isConsentRequestMode() ? stages.length - 1 : 0);
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (pendingSend) window.requestAnimationFrame(applyPendingSend);
 }
 
 function showStage(index) {
@@ -1613,6 +1616,21 @@ async function sendDriverRequest(requestType) {
   await sendToBackend("send_request", { recipientEmail: recipient, requestType });
 }
 
+async function captureSignerIp() {
+  if (signerIp) return signerIp;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const response = await fetch("https://api.ipify.org?format=json", { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timer);
+    const data = await response.json();
+    signerIp = String(data.ip || "").trim();
+  } catch {
+    signerIp = "";
+  }
+  return signerIp;
+}
+
 async function sendToBackend(action, request = {}) {
   if (!config.appsScriptUrl) {
     resultPanel.classList.remove("is-hidden");
@@ -1639,6 +1657,7 @@ async function sendToBackend(action, request = {}) {
         applicationUrl: `${window.location.origin}${window.location.pathname}`,
         userAgent: navigator.userAgent,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        signerIp: (action === "submit" || action === "send_request") ? (signerIp || (await captureSignerIp())) : signerIp,
         documentVersions: config.documentVersions || {},
         documentDigests: config.documentDigests || {}
       }
@@ -1723,6 +1742,31 @@ function initializeMode() {
     setField("resume_token", resumeToken);
     startButton.textContent = "Continue saved application →";
   }
+  const sendType = params.get("send");
+  if (sendType === "mvr" || sendType === "psp") {
+    pendingSend = sendType;
+    document.querySelector("[data-admin-intro]")?.classList.remove("is-hidden");
+    document.querySelector("[data-admin-bar]")?.classList.remove("is-hidden");
+    setField("application_mode", "admin");
+    setField("request_type", sendType);
+    startButton.textContent = "Open to send consent →";
+  }
+}
+
+function applyPendingSend() {
+  if (!pendingSend) return;
+  const bar = document.querySelector("[data-admin-bar]");
+  bar?.classList.remove("is-hidden");
+  const button = document.querySelector(`[data-send-request="${pendingSend}"]`);
+  if (button) button.classList.add("is-highlighted");
+  const keyField = document.querySelector('[name="admin_access_key"]');
+  smartScrollIntoView(bar || form, "start");
+  keyField?.focus({ preventScroll: true });
+  setAdminSendStatus(
+    pendingSend === "mvr"
+      ? "Enter the admin key and confirm the driver’s email, then choose Send MVR/CDLIS consent."
+      : "Enter the admin key and confirm the driver’s email, then choose Send PSP consent."
+  );
 }
 
 function initializeForm() {
