@@ -1789,6 +1789,225 @@ function initializeForm() {
   }
 }
 
+/* ===== Lanefinder drag-and-drop prefill (admin) ===== */
+const LF_MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+const lfPad2 = (value) => `0${Number(value)}`.slice(-2);
+
+function lfParseDate(raw) {
+  const text = String(raw || "").trim();
+  let match = text.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (match) {
+    const month = LF_MONTHS[match[1].slice(0, 3).toLowerCase()];
+    if (month) return `${match[3]}-${lfPad2(month)}-${lfPad2(match[2])}`;
+  }
+  match = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
+  if (match) {
+    const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return `${year}-${lfPad2(month)}-${lfPad2(day)}`;
+  }
+  return "";
+}
+function lfParseMonth(raw) {
+  const date = lfParseDate(raw);
+  return date ? date.slice(0, 7) : "";
+}
+
+function lfSplitAddress(raw) {
+  let text = String(raw || "").replace(/\s+/g, " ").trim();
+  const out = {};
+  const zip = text.match(/(\d{5})(?:-\d{4})?\s*$/);
+  if (zip) { out.current_address_postal = zip[1]; text = text.slice(0, zip.index).trim().replace(/,\s*$/, ""); }
+  const state = text.match(/,?\s*([A-Z]{2})\s*$/);
+  if (state) { out.current_address_state = state[1]; text = text.slice(0, state.index).trim().replace(/,\s*$/, ""); }
+  const parts = text.split(",");
+  if (parts.length >= 2) { out.current_address_city = parts.pop().trim(); out.current_address_street = parts.join(",").trim(); }
+  else {
+    const words = text.trim().split(/\s+/);
+    if (words.length >= 3) { out.current_address_city = words.pop(); out.current_address_street = words.join(" "); }
+    else out.current_address_street = text.trim();
+  }
+  return out;
+}
+
+function lfGroupLines(items) {
+  const cells = items
+    .filter((item) => item.str && item.str.trim())
+    .map((item) => ({ x: Math.round(item.transform[4]), y: Math.round(item.transform[5]), text: item.str.trim() }));
+  cells.sort((a, b) => (Math.abs(a.y - b.y) > 3 ? b.y - a.y : a.x - b.x));
+  const lines = [];
+  let current = null;
+  for (const cell of cells) {
+    if (!current || Math.abs(current.y - cell.y) > 3) { current = { y: cell.y, cells: [] }; lines.push(current); }
+    current.cells.push({ x: cell.x, text: cell.text });
+  }
+  lines.forEach((line) => (line.text = line.cells.map((cell) => cell.text).join(" ")));
+  return lines;
+}
+
+function lfPairSection(lines, labels) {
+  const result = {};
+  const index = lines.findIndex((line) => labels.filter((label) => line.cells.some((cell) => cell.text === label)).length >= 2);
+  if (index === -1 || index + 1 >= lines.length) return result;
+  const labelCells = lines[index].cells.filter((cell) => labels.includes(cell.text));
+  lines[index + 1].cells.forEach((valueCell) => {
+    let best = null;
+    let bestDistance = Infinity;
+    labelCells.forEach((labelCell) => {
+      const distance = Math.abs(labelCell.x - valueCell.x);
+      if (distance < bestDistance) { bestDistance = distance; best = labelCell; }
+    });
+    if (best && bestDistance < 40) result[best.text] = result[best.text] ? `${result[best.text]} ${valueCell.text}` : valueCell.text;
+  });
+  return result;
+}
+
+function lfCollectColumn(lines, label, stopRe) {
+  const index = lines.findIndex((line) => line.cells.some((cell) => cell.text === label));
+  if (index === -1) return "";
+  const columnX = lines[index].cells.find((cell) => cell.text === label).x;
+  const parts = [];
+  for (let i = index + 1; i < lines.length; i += 1) {
+    if (lines[i].cells.some((cell) => stopRe.test(cell.text))) break;
+    const cell = lines[i].cells.find((candidate) => Math.abs(candidate.x - columnX) < 25);
+    if (cell) parts.push(cell.text);
+    else if (parts.length) break;
+  }
+  return parts.join(" ");
+}
+
+function lfParse(lines) {
+  const fields = {};
+  const joined = lines.map((line) => line.text).join("\n");
+  const title = joined.match(/([A-Za-z'’.\-]+)\s+([A-Za-z'’.\-]+)['’]s\s+Driver Employment Application/);
+  if (title) { fields.legal_first_name = title[1]; fields.legal_last_name = title[2]; }
+
+  const personal = lfPairSection(lines, ["First Name", "Middle Name", "Last Name", "Date of Birth"]);
+  if (personal["First Name"]) fields.legal_first_name = personal["First Name"];
+  if (personal["Middle Name"]) fields.legal_middle_name = personal["Middle Name"];
+  if (personal["Last Name"]) fields.legal_last_name = personal["Last Name"];
+  if (lfParseDate(personal["Date of Birth"])) fields.date_of_birth = lfParseDate(personal["Date of Birth"]);
+
+  const medLine = lines.map((line) => line.text).find((text) => /medical card/i.test(text) && /expires/i.test(text));
+  if (medLine) {
+    const date = lfParseDate((medLine.match(/expires\s+(.+)$/i) || [])[1]);
+    if (date) fields.medical_card_expiration = date;
+  }
+
+  const license = lfPairSection(lines, ["Class", "Issuing State", "License Number", "Expiration Date", "Endorsements", "Restrictions"]);
+  if (license["Class"]) fields.license_class = license["Class"];
+  if (license["Issuing State"]) fields.license_state = license["Issuing State"];
+  if (license["License Number"]) fields.license_number = license["License Number"];
+  if (lfParseDate(license["Expiration Date"])) fields.license_expiration_date = lfParseDate(license["Expiration Date"]);
+  if (license["Endorsements"]) fields.license_endorsements = license["Endorsements"];
+  if (license["Restrictions"]) fields.license_restrictions = license["Restrictions"];
+
+  const address = lfCollectColumn(lines, "Current Address", /PREVIOUS ADDRESSES|Licenses|CURRENT LICENSE/i);
+  if (address) Object.assign(fields, lfSplitAddress(address));
+  const moveIn = lfPairSection(lines, ["Move-in Date", "Current Address", "Mailing Address"])["Move-in Date"];
+  if (lfParseMonth(moveIn)) fields.current_address_start = lfParseMonth(moveIn);
+
+  return fields;
+}
+
+let lfPdfjsPromise;
+function loadPdfjs() {
+  if (!lfPdfjsPromise) {
+    lfPdfjsPromise = import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs").then((lib) => {
+      lib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+      return lib;
+    });
+  }
+  return lfPdfjsPromise;
+}
+
+async function lfExtractLines(file) {
+  const pdfjsLib = await loadPdfjs();
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  let lines = [];
+  for (let page = 1; page <= pdf.numPages; page += 1) {
+    const content = await (await pdf.getPage(page)).getTextContent();
+    lines = lines.concat(lfGroupLines(content.items));
+  }
+  return lines;
+}
+
+function classifyLanefinderFile(name) {
+  const value = String(name || "").toLowerCase();
+  if (/application/.test(value)) return "application";
+  if (/med|card/.test(value)) return "medcard";
+  if (/cdl|licen[sc]e/.test(value)) return "cdl";
+  return "unknown";
+}
+
+function attachUpload(inputName, file) {
+  const input = form.querySelector(`input[type="file"][name="${CSS.escape(inputName)}"]`);
+  if (!input) return;
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  input.files = transfer.files;
+  updateUploadLabel(input, file.name);
+}
+
+const lfDrop = document.querySelector("[data-lanefinder-drop]");
+const lfInput = document.querySelector("[data-lanefinder-input]");
+const lfStatus = document.querySelector("[data-lanefinder-status]");
+
+function setLfStatus(message, isError = false) {
+  if (!lfStatus) return;
+  lfStatus.textContent = message;
+  lfStatus.classList.toggle("is-error", Boolean(isError));
+}
+
+async function processLanefinderFiles(fileList) {
+  const files = [...fileList].filter((file) => /pdf/i.test(file.type) || /\.pdf$/i.test(file.name));
+  if (!files.length) { setLfStatus("Drop the Lanefinder PDF files (application, CDL, medical card).", true); return; }
+  setLfStatus(`Reading ${files.length} file${files.length > 1 ? "s" : ""}…`);
+  let fields = {};
+  const attachments = [];
+  for (const file of files) {
+    const kind = classifyLanefinderFile(file.name);
+    if (kind === "cdl") { attachments.push(["current_cdl_front", file]); continue; }
+    if (kind === "medcard") { attachments.push(["medical_card", file]); continue; }
+    try {
+      const parsed = lfParse(await lfExtractLines(file));
+      if (Object.keys(parsed).length) fields = { ...fields, ...parsed };
+    } catch (error) {
+      console.warn("Lanefinder parse failed", file.name, error);
+    }
+  }
+  if (!Object.keys(fields).length && !attachments.length) {
+    setLfStatus("Couldn't read those PDFs. Make sure they're the Lanefinder files.", true);
+    return;
+  }
+  showWizard();
+  if (Object.keys(fields).length) hydrateFields(fields, []);
+  attachments.forEach(([name, file]) => attachUpload(name, file));
+  markAutofilled();
+  const name = [fields.legal_first_name, fields.legal_last_name].filter(Boolean).join(" ");
+  resultPanel.classList.remove("is-hidden", "is-error");
+  resultPanel.innerHTML = `<strong>Auto-filled from Lanefinder${name ? `: ${name}` : ""}.</strong>` +
+    `<p>Review the details, add anything missing, then Save prefill or send the driver their link. ${attachments.length ? `${attachments.length} document(s) attached.` : ""}</p>`;
+}
+
+if (lfDrop) {
+  ["dragenter", "dragover"].forEach((type) => lfDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    lfDrop.classList.add("is-dragover");
+  }));
+  ["dragleave", "dragend"].forEach((type) => lfDrop.addEventListener(type, () => lfDrop.classList.remove("is-dragover")));
+  lfDrop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    lfDrop.classList.remove("is-dragover");
+    if (event.dataTransfer?.files?.length) processLanefinderFiles(event.dataTransfer.files);
+  });
+  lfInput?.addEventListener("change", () => {
+    if (lfInput.files.length) processLanefinderFiles(lfInput.files);
+  });
+}
+
 startButton.addEventListener("click", showWizard);
 backButton.addEventListener("click", () => showStage(stageIndex - 1));
 nextButton.addEventListener("click", () => {

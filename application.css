@@ -252,6 +252,24 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
 .admin-intro { max-width: 620px; margin-top: 24px; padding: 16px 18px; color: #30465d; border: 1px solid #9fceef; border-radius: 15px; background: #edf8ff; }
 .admin-intro strong { font-size: .8rem; }
 .admin-intro p { margin: 4px 0 0; color: #657b91; font-size: .72rem; line-height: 1.45; }
+.lanefinder-drop {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 20px;
+  text-align: center;
+  border: 2px dashed #9fceef;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .6);
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease;
+}
+.lanefinder-drop.is-dragover { border-color: #2585ff; background: #e6f2ff; }
+.lanefinder-drop-icon { font-size: 1.4rem; }
+.lanefinder-drop strong { font-size: .82rem; color: #1c4e80; }
+.lanefinder-drop small { color: #657b91; font-size: .72rem; line-height: 1.45; }
+.lanefinder-drop-status { min-height: 1em; color: #1769a9; font-size: .72rem; font-weight: 800; }
+.lanefinder-drop-status.is-error { color: #c0392b; }
 .wizard-body { min-height: 580px; }
 .form-stage { padding: 42px 42px 48px; }
 .stage-heading { margin-bottom: 34px; display: block; }
