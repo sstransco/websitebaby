@@ -873,10 +873,10 @@ function copyApplicationToDqf_(printablePacket, fields) {
     var first = cleanName_(fields.legal_first_name || "PENDING").toUpperCase();
     var dqfFolder = findOrCreateFolder_(dqfParent, last + "," + first);
     var source = DriveApp.getFileById(printablePacket.fileId);
-    var name = source.getName();
-    var existing = dqfFolder.getFilesByName(name);
+    var dqfName = last + "," + first + " - DOT Signed Application.pdf";
+    var existing = dqfFolder.getFilesByName(dqfName);
     while (existing.hasNext()) existing.next().setTrashed(true);
-    return source.makeCopy(name, dqfFolder).getUrl();
+    return source.makeCopy(dqfName, dqfFolder).getUrl();
   } catch (error) {
     console.warn("DQF copy failed: " + error);
     return null;
