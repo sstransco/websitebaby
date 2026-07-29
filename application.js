@@ -1563,7 +1563,7 @@ function setWorking(action, working) {
   saveButton.disabled = working;
   submitButton.disabled = working;
   if (working) {
-    const label = action === "submit" ? "Submitting" : action === "send_request" ? "Sending" : "Saving";
+    const label = action === "submit" ? "Submitting" : (action === "send_request" || action === "records_request") ? "Sending" : "Saving";
     saveState.innerHTML = `<i></i> ${label}…`;
   }
 }
@@ -1614,6 +1614,58 @@ async function captureSignerIp() {
   return signerIp;
 }
 
+function collectDeficiencies() {
+  const items = [];
+  const hasValue = (name) => Boolean(getField(name)?.value?.trim());
+  if (!fileSlotSatisfied("current_cdl_front")) items.push("Front side of your CDL");
+  if (!fileSlotSatisfied("current_cdl_back")) items.push("Back side of your CDL");
+  if (!fileSlotSatisfied("medical_card")) items.push("Medical examiner’s certificate (medical card)");
+  if (!hasValue("ssn")) items.push("Social Security number");
+  if (!hasValue("date_of_birth")) items.push("Date of birth");
+  if (!hasValue("license_number")) items.push("CDL number");
+  if (!hasValue("license_expiration_date")) items.push("CDL expiration date");
+  if (!hasValue("medical_card_expiration")) items.push("Medical card expiration date");
+  if (!hasValue("current_address_street") || !hasValue("current_address_city")) items.push("Current residence address");
+  const employmentGap = describeMissing(uncoveredMonths(timelineIntervals("employment"), 36));
+  if (employmentGap) items.push("Employment gap to explain or fill: " + employmentGap);
+  const residenceGap = describeMissing(uncoveredMonths(timelineIntervals("residence"), 36));
+  if (residenceGap) items.push("Residence gap to explain or fill: " + residenceGap);
+  const tenYear = describeMissing(uncoveredMonths(timelineIntervals("employment"), 120));
+  if (tenYear && tenYear !== employmentGap) items.push("10-year employment history — periods still needed: " + tenYear);
+  const experienceMonths = Number(getField("cmv_experience_months")?.value || 0);
+  if (experienceMonths > 0 && experienceMonths < 24) items.push("Proof of at least 2 years of CDL/CMV driving experience (insurance requirement)");
+  const acksMissing = [...form.querySelectorAll("[data-authorization-ack]")].some((input) => !input.checked);
+  if (acksMissing || !getField("certification")?.checked || !hasValue("signature_name")) {
+    items.push("Your electronic signature on the application and required authorizations");
+  }
+  return items;
+}
+
+async function sendRecordsRequest() {
+  const recipient = adminRecipientEmail();
+  const adminKey = document.querySelector('[name="admin_access_key"]')?.value || "";
+  if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    setAdminSendStatus("Enter the driver’s valid email address first.", true);
+    adminRecipient?.focus();
+    return;
+  }
+  if (!adminKey) {
+    setAdminSendStatus("Enter the administrator key first.", true);
+    document.querySelector('[name="admin_access_key"]')?.focus();
+    return;
+  }
+  const deficiencies = collectDeficiencies();
+  if (!deficiencies.length) {
+    setAdminSendStatus("No missing items detected — nothing to request.", true);
+    return;
+  }
+  if (!window.confirm(`Send ${recipient} a records request for ${deficiencies.length} item(s)?\n\n• ${deficiencies.join("\n• ")}`)) return;
+  const emailField = getField("applicant_email");
+  if (emailField && !emailField.value) emailField.value = recipient;
+  setAdminSendStatus(`Sending records request for ${deficiencies.length} item(s)…`);
+  await sendToBackend("records_request", { recipientEmail: recipient, deficiencies });
+}
+
 async function sendToBackend(action, request = {}) {
   if (!config.appsScriptUrl) {
     resultPanel.classList.remove("is-hidden");
@@ -1632,6 +1684,7 @@ async function sendToBackend(action, request = {}) {
       adminKey: document.querySelector('[name="admin_access_key"]')?.value || "",
       recipientEmail: request.recipientEmail || "",
       requestType: request.requestType || "",
+      deficiencies: request.deficiencies || [],
       pageOrigin: window.location.origin,
       fields: serializeFields(),
       files,
@@ -1651,7 +1704,7 @@ async function sendToBackend(action, request = {}) {
     backendForm.submit();
   } catch (error) {
     setWorking(action, false);
-    if (action === "send_request") setAdminSendStatus(error.message || "Could not send the driver request.", true);
+    if (action === "send_request" || action === "records_request") setAdminSendStatus(error.message || "Could not send the request.", true);
     resultPanel.classList.remove("is-hidden");
     resultPanel.classList.add("is-error");
     resultPanel.innerHTML = `<strong>Could not ${action}.</strong><p>${error.message}</p>`;
@@ -1682,6 +1735,18 @@ function handleBackendMessage(event) {
       pendingBackendAction = "";
       return;
     }
+    if (pendingBackendAction === "records_request") {
+      setField("application_id", data.applicationId);
+      setField("resume_token", data.resumeToken);
+      saveDraftLocal();
+      const count = Number(data.itemCount || 0);
+      resultPanel.innerHTML = `<strong>Records request sent.</strong><p>Sent to ${data.recipientEmail || "the driver"} requesting ${count} item${count === 1 ? "" : "s"}. The driver gets a private link to supply exactly what's missing.</p>`;
+      setAdminSendStatus(`Records request sent to ${data.recipientEmail || "the driver"} (${count} item${count === 1 ? "" : "s"}).`);
+      saveState.innerHTML = "<i></i> Records request sent";
+      pendingBackendAction = "";
+      resultPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (pendingBackendAction === "send_request") {
       setField("application_id", data.applicationId);
       setField("resume_token", data.resumeToken);
@@ -1706,10 +1771,17 @@ function handleBackendMessage(event) {
       : "";
     resultPanel.innerHTML = `<strong>${pendingBackendAction === "submit" ? "Application submitted." : "Application saved."}</strong><p>Reference: ${data.applicationId}</p>${continuation}`;
     saveState.innerHTML = `<i></i> ${pendingBackendAction === "submit" ? "Submitted" : "Saved to Drive"}`;
+  } else if (pendingBackendAction === "load") {
+    // A failed restore just means there is no saved draft for this link — start
+    // fresh silently instead of showing an alarming "Could not load" error.
+    resultPanel.classList.add("is-hidden");
+    saveState.innerHTML = "<i></i> Draft in this tab";
+    pendingBackendAction = "";
+    return;
   } else {
     resultPanel.classList.add("is-error");
     resultPanel.innerHTML = `<strong>Could not ${pendingBackendAction}.</strong><p>${data.message || "The save service returned an error."}</p>`;
-    if (pendingBackendAction === "send_request") setAdminSendStatus(data.message || "Could not send the driver request.", true);
+    if (pendingBackendAction === "send_request" || pendingBackendAction === "records_request") setAdminSendStatus(data.message || "Could not send the request.", true);
   }
   resultPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   pendingBackendAction = "";
@@ -1908,6 +1980,9 @@ function lfParse(lines) {
   const moveIn = lfPairSection(lines, ["Move-in Date", "Current Address", "Mailing Address"])["Move-in Date"];
   if (lfParseMonth(moveIn)) fields.current_address_start = lfParseMonth(moveIn);
 
+  const experience = joined.match(/Total Driving Experience[\s\S]{0,120}?(\d+)\s*years?(?:\s*(?:and\s*)?(\d+)\s*months?)?/i);
+  if (experience) fields.cmv_experience_months = String(Number(experience[1]) * 12 + (Number(experience[2]) || 0));
+
   return fields;
 }
 
@@ -2019,6 +2094,7 @@ saveButton.addEventListener("click", () => sendToBackend("save"));
 document.querySelectorAll("[data-send-request]").forEach((button) => {
   button.addEventListener("click", () => sendDriverRequest(button.dataset.sendRequest || "application"));
 });
+document.querySelector("[data-send-records]")?.addEventListener("click", sendRecordsRequest);
 window.addEventListener("message", handleBackendMessage);
 
 form.addEventListener("input", (event) => {

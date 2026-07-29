@@ -562,6 +562,7 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
   font-weight: 850;
   cursor: pointer;
 }
+.small-action-records { background: #0f7b53; border-color: #0c6644; }
 .small-action.is-highlighted {
   background: #f5b301;
   border-color: #d99a00;

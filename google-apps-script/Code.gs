@@ -5,7 +5,8 @@ var SIGMA_CONFIG = {
   usdot: "4473629",
   mcNumber: "1547581",
   schemaVersion: "2.0.0",
-  siteApplicationUrl: "https://sstransco.com/apply.html"
+  siteApplicationUrl: "https://sstransco.com/apply.html",
+  dqfFolderId: "1wlZm1bQTmLEGYlwkjTUEnCAj4KjfpKvy"
 };
 
 function doGet() {
@@ -76,6 +77,7 @@ function routeRequest_(payload) {
   if (payload.action === "load") return loadApplication_(payload);
   if (payload.action === "regenerate") return regenerateSignedDocuments_(payload);
   if (payload.action === "send_request") return sendDriverRequest_(payload);
+  if (payload.action === "records_request") return sendRecordsRequest_(payload);
   if (payload.action === "ingest") { validateAdminKey_(payload.adminKey); return ingestDriveDropIns(); }
   if (payload.action !== "save" && payload.action !== "submit") throw new Error("Unsupported action.");
   return saveApplication_(payload);
@@ -157,6 +159,68 @@ function sendDriverRequestEmail_(recipient, requestType, fields, driverLink) {
     "Sigma Squared Transport Corporation"
   ].join("\n");
   MailApp.sendEmail({ to: recipient, subject: details.subject, body: body, name: SIGMA_CONFIG.companyName });
+}
+
+function sendRecordsRequest_(payload) {
+  validateAdminKey_(payload.adminKey);
+  var recipient = normalizeRecipientEmail_(payload.recipientEmail || (payload.fields && payload.fields.applicant_email));
+  var deficiencies = (payload.deficiencies || []).map(function(item) { return String(item || "").trim(); }).filter(Boolean);
+  if (!deficiencies.length) throw new Error("No missing items to request.");
+  var fields = payload.fields || {};
+  fields.application_mode = "admin";
+  if (!fields.applicant_email) fields.applicant_email = recipient;
+
+  var saved = saveApplication_({
+    action: "save",
+    schemaVersion: payload.schemaVersion,
+    adminKey: payload.adminKey,
+    pageOrigin: payload.pageOrigin,
+    fields: fields,
+    files: payload.files || [],
+    audit: payload.audit || {}
+  });
+  if (!saved.continuationUrl) throw new Error("Could not create the private driver link.");
+  sendRecordsRequestEmail_(recipient, fields, deficiencies, saved.continuationUrl);
+  logActivity_("records_request", applicantName_(fields), saved.applicationId, deficiencies.length + " item(s) requested -> " + recipient);
+
+  return {
+    ok: true,
+    applicationId: saved.applicationId,
+    resumeToken: saved.resumeToken,
+    continuationUrl: saved.continuationUrl,
+    folderUrl: saved.folderUrl,
+    recipientEmail: recipient,
+    itemCount: deficiencies.length,
+    status: "sent"
+  };
+}
+
+function sendRecordsRequestEmail_(recipient, fields, deficiencies, driverLink) {
+  var firstName = String(fields.legal_first_name || "Driver").trim();
+  var list = deficiencies.map(function(item, index) { return "  " + (index + 1) + ". " + item; }).join("\n");
+  var body = [
+    SIGMA_CONFIG.companyName,
+    "USDOT " + SIGMA_CONFIG.usdot + "  |  MC-" + SIGMA_CONFIG.mcNumber,
+    SIGMA_CONFIG.carrierAddress,
+    "",
+    "RE: Driver Qualification File - Records Request",
+    "",
+    "Dear " + firstName + ",",
+    "",
+    "To complete your driver qualification file, we still need the following item(s). Federal Motor Carrier Safety Regulations (49 CFR Part 391) and our insurer require a complete file before you may be placed in service:",
+    "",
+    list,
+    "",
+    "Please provide these through your private, secure link:",
+    driverLink,
+    "",
+    "Do not forward this link. If you have questions or believe an item was requested in error, reply to this email or contact dispatch@sstransco.com or (605) 650-3870.",
+    "",
+    "Thank you,",
+    SIGMA_CONFIG.companyName,
+    "Driver Qualification / Compliance"
+  ].join("\n");
+  MailApp.sendEmail({ to: recipient, subject: "Records request - " + SIGMA_CONFIG.companyName + " driver qualification file", body: body, name: SIGMA_CONFIG.companyName });
 }
 
 function regenerateSignedDocuments_(payload) {
@@ -526,7 +590,8 @@ function createSignedPacket_(folder, fields, audit, applicationId) {
     }
   }
   var printablePacket = createPrintableApplicationPacket_(folder, fields, audit, applicationId, auditId, digest);
-  return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket };
+  var dqfCopyUrl = printablePacket ? copyApplicationToDqf_(printablePacket, fields) : null;
+  return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket, dqfCopyUrl: dqfCopyUrl };
 }
 
 function createConsentRequestPacket_(folder, fields, audit, applicationId) {
@@ -798,6 +863,24 @@ function signedFormPdfBlob_(definition, fields, audit, applicationId, auditId, d
   var pdf = driveFile.getAs(MimeType.PDF).setName(fileName);
   driveFile.setTrashed(true);
   return pdf;
+}
+
+function copyApplicationToDqf_(printablePacket, fields) {
+  if (!SIGMA_CONFIG.dqfFolderId || !printablePacket || !printablePacket.fileId) return null;
+  try {
+    var dqfParent = DriveApp.getFolderById(SIGMA_CONFIG.dqfFolderId);
+    var last = cleanName_(fields.legal_last_name || "PENDING").toUpperCase();
+    var first = cleanName_(fields.legal_first_name || "PENDING").toUpperCase();
+    var dqfFolder = findOrCreateFolder_(dqfParent, last + "," + first);
+    var source = DriveApp.getFileById(printablePacket.fileId);
+    var name = source.getName();
+    var existing = dqfFolder.getFilesByName(name);
+    while (existing.hasNext()) existing.next().setTrashed(true);
+    return source.makeCopy(name, dqfFolder).getUrl();
+  } catch (error) {
+    console.warn("DQF copy failed: " + error);
+    return null;
+  }
 }
 
 function createPrintableApplicationPacket_(folder, fields, audit, applicationId, auditId, digest) {
@@ -1258,21 +1341,37 @@ function indexedRadioValues_(fields, prefix) {
 }
 
 function sendNotification_(action, fields, folder, applicationId, uploads, signedPacket) {
-  var recipient = "dispatch@sstransco.com";
+  // Notifications go to a Drive activity log instead of email (no more dispatch@
+  // spam / info@ bounces). Driver invite emails are unaffected.
   var applicant = [fields.legal_first_name, fields.legal_last_name].filter(Boolean).join(" ") || "Pending applicant";
-  var subject = "[Driver application] " + (action === "submit" ? "Submitted" : "Saved") + " — " + applicant;
-  var lines = [
-    "Status: " + (action === "submit" ? "Submitted" : "Saved for later"),
-    "Applicant: " + applicant,
-    "Application ID: " + applicationId,
-    "Folder: " + folder.getUrl(),
-    "Files received in this event: " + uploads.length
-  ];
-  if (signedPacket) lines.push("Signed packet: " + signedPacket.url, "Audit ID: " + signedPacket.auditId);
-  if (signedPacket && signedPacket.forms) lines.push("Signed form PDFs: " + signedPacket.forms.length);
-  if (signedPacket && signedPacket.printablePacket) lines.push("Printable packet: " + signedPacket.printablePacket.url);
-  lines.push("", "This notification intentionally excludes SSN, license number, date of birth, and medical details.");
-  MailApp.sendEmail({ to: recipient, subject: subject, body: lines.join("\n"), name: SIGMA_CONFIG.companyName });
+  var details = (action === "submit" ? "Submitted" : "Saved for later") +
+    " | files this event: " + uploads.length +
+    " | folder: " + folder.getUrl() +
+    (signedPacket ? " | signed: " + signedPacket.url : "") +
+    (signedPacket && signedPacket.dqfCopyUrl ? " | DQF: " + signedPacket.dqfCopyUrl : "");
+  logActivity_(action, applicant, applicationId, details);
+}
+
+function logActivity_(event, applicant, applicationId, details) {
+  try {
+    var parent = DriveApp.getFolderById(SIGMA_CONFIG.parentFolderId);
+    var files = parent.getFilesByName("Activity Log");
+    var spreadsheet;
+    if (files.hasNext()) {
+      spreadsheet = SpreadsheetApp.openById(files.next().getId());
+    } else {
+      spreadsheet = SpreadsheetApp.create("Activity Log");
+      DriveApp.getFileById(spreadsheet.getId()).moveTo(parent);
+    }
+    var sheet = spreadsheet.getSheets()[0];
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["timestamp_utc", "event", "applicant", "application_id", "details"]);
+      sheet.setFrozenRows(1);
+    }
+    sheet.appendRow([new Date().toISOString(), event, applicant || "", applicationId || "", details || ""]);
+  } catch (error) {
+    console.warn("Activity log failed: " + error);
+  }
 }
 
 function readFields_(spreadsheet) {
