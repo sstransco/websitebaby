@@ -5,7 +5,8 @@ var SIGMA_CONFIG = {
   usdot: "4473629",
   mcNumber: "1547581",
   schemaVersion: "2.0.0",
-  siteApplicationUrl: "https://sstransco.com/apply.html"
+  siteApplicationUrl: "https://sstransco.com/apply.html",
+  dqfFolderId: "1wlZm1bQTmLEGYlwkjTUEnCAj4KjfpKvy"
 };
 
 function doGet() {
@@ -526,7 +527,8 @@ function createSignedPacket_(folder, fields, audit, applicationId) {
     }
   }
   var printablePacket = createPrintableApplicationPacket_(folder, fields, audit, applicationId, auditId, digest);
-  return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket };
+  var dqfCopyUrl = printablePacket ? copyApplicationToDqf_(printablePacket, fields) : null;
+  return { auditId: auditId, digest: digest, url: pdfFile.getUrl(), fileId: pdfFile.getId(), forms: forms, printablePacket: printablePacket, dqfCopyUrl: dqfCopyUrl };
 }
 
 function createConsentRequestPacket_(folder, fields, audit, applicationId) {
@@ -798,6 +800,24 @@ function signedFormPdfBlob_(definition, fields, audit, applicationId, auditId, d
   var pdf = driveFile.getAs(MimeType.PDF).setName(fileName);
   driveFile.setTrashed(true);
   return pdf;
+}
+
+function copyApplicationToDqf_(printablePacket, fields) {
+  if (!SIGMA_CONFIG.dqfFolderId || !printablePacket || !printablePacket.fileId) return null;
+  try {
+    var dqfParent = DriveApp.getFolderById(SIGMA_CONFIG.dqfFolderId);
+    var last = cleanName_(fields.legal_last_name || "PENDING").toUpperCase();
+    var first = cleanName_(fields.legal_first_name || "PENDING").toUpperCase();
+    var dqfFolder = findOrCreateFolder_(dqfParent, last + "," + first);
+    var source = DriveApp.getFileById(printablePacket.fileId);
+    var name = source.getName();
+    var existing = dqfFolder.getFilesByName(name);
+    while (existing.hasNext()) existing.next().setTrashed(true);
+    return source.makeCopy(name, dqfFolder).getUrl();
+  } catch (error) {
+    console.warn("DQF copy failed: " + error);
+    return null;
+  }
 }
 
 function createPrintableApplicationPacket_(folder, fields, audit, applicationId, auditId, digest) {
@@ -1264,7 +1284,8 @@ function sendNotification_(action, fields, folder, applicationId, uploads, signe
   var details = (action === "submit" ? "Submitted" : "Saved for later") +
     " | files this event: " + uploads.length +
     " | folder: " + folder.getUrl() +
-    (signedPacket ? " | signed: " + signedPacket.url : "");
+    (signedPacket ? " | signed: " + signedPacket.url : "") +
+    (signedPacket && signedPacket.dqfCopyUrl ? " | DQF: " + signedPacket.dqfCopyUrl : "");
   logActivity_(action, applicant, applicationId, details);
 }
 
