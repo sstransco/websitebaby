@@ -1,0 +1,12 @@
+# Always revalidate app code so deploys reach visitors immediately
+# (returns a fast 304 when unchanged, fresh code when changed).
+/application.js
+  Cache-Control: no-cache
+/application.css
+  Cache-Control: no-cache
+/application-config.js
+  Cache-Control: no-cache
+/site.js
+  Cache-Control: no-cache
+/styles.css
+  Cache-Control: no-cache

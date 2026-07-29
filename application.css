@@ -234,9 +234,10 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
 .admin-bar {
   padding: 13px 34px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px 24px;
   color: #6b4b00;
   border-bottom: 1px solid #efd587;
   background: #fff8dd;
@@ -792,7 +793,21 @@ button, label, select { -webkit-tap-highlight-color: transparent; }
 .preview-notice { margin-top: 22px; padding: 19px; color: #15533f; border: 1px solid #a6dfce; border-radius: 14px; background: #edf9f5; }
 .preview-notice strong { font-size: .85rem; }
 .preview-notice p { margin: 5px 0 0; font-size: .75rem; line-height: 1.5; }
-.submission-result { margin-top: 22px; padding: 19px; color: #15533f; border: 1px solid #a6dfce; border-radius: 14px; background: #edf9f5; }
+.submission-result {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(720px, calc(100% - 28px));
+  margin: 0;
+  padding: 19px;
+  color: #15533f;
+  border: 1px solid #a6dfce;
+  border-radius: 14px;
+  background: #edf9f5;
+  box-shadow: 0 22px 60px rgba(4, 20, 43, .3);
+}
 .submission-result strong { font-size: .85rem; }
 .submission-result p { margin: 5px 0 0; font-size: .74rem; line-height: 1.5; }
 .submission-result a { color: #0b6a4c; font-weight: 800; }
