@@ -77,6 +77,7 @@ function routeRequest_(payload) {
   if (payload.action === "load") return loadApplication_(payload);
   if (payload.action === "regenerate") return regenerateSignedDocuments_(payload);
   if (payload.action === "send_request") return sendDriverRequest_(payload);
+  if (payload.action === "records_request") return sendRecordsRequest_(payload);
   if (payload.action === "ingest") { validateAdminKey_(payload.adminKey); return ingestDriveDropIns(); }
   if (payload.action !== "save" && payload.action !== "submit") throw new Error("Unsupported action.");
   return saveApplication_(payload);
@@ -158,6 +159,68 @@ function sendDriverRequestEmail_(recipient, requestType, fields, driverLink) {
     "Sigma Squared Transport Corporation"
   ].join("\n");
   MailApp.sendEmail({ to: recipient, subject: details.subject, body: body, name: SIGMA_CONFIG.companyName });
+}
+
+function sendRecordsRequest_(payload) {
+  validateAdminKey_(payload.adminKey);
+  var recipient = normalizeRecipientEmail_(payload.recipientEmail || (payload.fields && payload.fields.applicant_email));
+  var deficiencies = (payload.deficiencies || []).map(function(item) { return String(item || "").trim(); }).filter(Boolean);
+  if (!deficiencies.length) throw new Error("No missing items to request.");
+  var fields = payload.fields || {};
+  fields.application_mode = "admin";
+  if (!fields.applicant_email) fields.applicant_email = recipient;
+
+  var saved = saveApplication_({
+    action: "save",
+    schemaVersion: payload.schemaVersion,
+    adminKey: payload.adminKey,
+    pageOrigin: payload.pageOrigin,
+    fields: fields,
+    files: payload.files || [],
+    audit: payload.audit || {}
+  });
+  if (!saved.continuationUrl) throw new Error("Could not create the private driver link.");
+  sendRecordsRequestEmail_(recipient, fields, deficiencies, saved.continuationUrl);
+  logActivity_("records_request", applicantName_(fields), saved.applicationId, deficiencies.length + " item(s) requested -> " + recipient);
+
+  return {
+    ok: true,
+    applicationId: saved.applicationId,
+    resumeToken: saved.resumeToken,
+    continuationUrl: saved.continuationUrl,
+    folderUrl: saved.folderUrl,
+    recipientEmail: recipient,
+    itemCount: deficiencies.length,
+    status: "sent"
+  };
+}
+
+function sendRecordsRequestEmail_(recipient, fields, deficiencies, driverLink) {
+  var firstName = String(fields.legal_first_name || "Driver").trim();
+  var list = deficiencies.map(function(item, index) { return "  " + (index + 1) + ". " + item; }).join("\n");
+  var body = [
+    SIGMA_CONFIG.companyName,
+    "USDOT " + SIGMA_CONFIG.usdot + "  |  MC-" + SIGMA_CONFIG.mcNumber,
+    SIGMA_CONFIG.carrierAddress,
+    "",
+    "RE: Driver Qualification File - Records Request",
+    "",
+    "Dear " + firstName + ",",
+    "",
+    "To complete your driver qualification file, we still need the following item(s). Federal Motor Carrier Safety Regulations (49 CFR Part 391) and our insurer require a complete file before you may be placed in service:",
+    "",
+    list,
+    "",
+    "Please provide these through your private, secure link:",
+    driverLink,
+    "",
+    "Do not forward this link. If you have questions or believe an item was requested in error, reply to this email or contact dispatch@sstransco.com or (605) 650-3870.",
+    "",
+    "Thank you,",
+    SIGMA_CONFIG.companyName,
+    "Driver Qualification / Compliance"
+  ].join("\n");
+  MailApp.sendEmail({ to: recipient, subject: "Records request - " + SIGMA_CONFIG.companyName + " driver qualification file", body: body, name: SIGMA_CONFIG.companyName });
 }
 
 function regenerateSignedDocuments_(payload) {

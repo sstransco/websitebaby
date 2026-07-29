@@ -84,6 +84,7 @@
           <button class="small-action" type="button" data-send-request="application">Send incomplete application</button>
           <button class="small-action" type="button" data-send-request="psp">Send PSP consent only</button>
           <button class="small-action" type="button" data-send-request="mvr">Send MVR/CDLIS consent only</button>
+          <button class="small-action small-action-records" type="button" data-send-records>Send records request</button>
         </div>
         <p class="admin-send-status" data-admin-send-status>Use the driver’s email, then choose what to send. The driver provides the remaining information and signs personally.</p>
       </div>
@@ -93,6 +94,7 @@
         <input type="hidden" name="resume_token">
         <input type="hidden" name="application_mode" value="driver">
         <input type="hidden" name="request_type">
+        <input type="hidden" name="cmv_experience_months">
         <input type="hidden" name="schema_version" value="2.0.0">
 
         <div class="wizard-body">
