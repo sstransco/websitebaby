@@ -193,6 +193,15 @@ function saveApplication_(payload) {
   var folderName = lastName.toUpperCase() + "," + firstName.toUpperCase();
   var resumeToken = String(fields.resume_token || "").trim() || Utilities.getUuid() + Utilities.getUuid();
   var existingSheetId = PropertiesService.getScriptProperties().getProperty("resume:" + resumeToken);
+  // A stale token can point at a sheet/folder that was deleted (in Trash).
+  // Ignore it and create a fresh folder instead of writing into the Trash.
+  if (existingSheetId) {
+    try {
+      if (DriveApp.getFileById(existingSheetId).isTrashed()) existingSheetId = null;
+    } catch (lookupError) {
+      existingSheetId = null;
+    }
+  }
   var folder;
   var sheet;
   if (existingSheetId) {

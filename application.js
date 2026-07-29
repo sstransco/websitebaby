@@ -904,31 +904,14 @@ function licenseRecords() {
 }
 
 function reconcileLicenses() {
-  const records = licenseRecords();
+  // Discrepancy box ("We found changes across license cards") removed per request.
+  // The newest license already populates the current fields; no separate panel.
   const reconciliation = document.querySelector("[data-reconciliation]");
   const list = document.querySelector("[data-reconciliation-list]");
-  const differences = [];
-  const seen = new Set();
-  records.forEach((record, index) => {
-    const duplicateKey = [record.state, record.licenseNumber, record.issueDate, record.expirationDate].join("|").toLowerCase();
-    if (seen.has(duplicateKey) && duplicateKey.replaceAll("|", "")) {
-      differences.push(`${record.label} duplicates another uploaded license record.`);
-    }
-    seen.add(duplicateKey);
-    if (index > 0 && ((records[0].state && record.state && records[0].state !== record.state) ||
-      (records[0].licenseNumber && record.licenseNumber && records[0].licenseNumber !== record.licenseNumber))) {
-      differences.push(
-        `Driver’s License ${index}: ${stateName(record.state)}, ${record.licenseNumber || "number not provided"} → ` +
-        `${stateName(records[0].state)}, ${records[0].licenseNumber || "number not provided"}`
-      );
-    }
-  });
-  reconciliation.classList.toggle("is-hidden", !differences.length);
-  list.replaceChildren(...differences.map((message) => {
-    const item = document.createElement("li");
-    item.textContent = message;
-    return item;
-  }));
+  reconciliation?.classList.add("is-hidden");
+  list?.replaceChildren();
+  const reconciliationCheck = getField("license_reconciliation_confirmed");
+  if (reconciliationCheck) reconciliationCheck.checked = true;
 }
 
 async function getTesseractWorker() {
@@ -1776,6 +1759,13 @@ function applyPendingSend() {
 }
 
 function initializeForm() {
+  const params = new URLSearchParams(window.location.search);
+  // Admin prefill (no ?resume link) always starts on a clean slate so the
+  // previous driver's saved draft/token can't carry over into a new prefill.
+  if (params.get("mode") === "admin" && !params.get("resume")) {
+    localStorage.removeItem(sessionKey);
+    sessionStorage.removeItem(sessionKey);
+  }
   const draft = readDraftData();
   populateStateSelects();
   if (draft.application_date) setField("application_date", draft.application_date);
