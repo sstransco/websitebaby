@@ -1258,21 +1258,36 @@ function indexedRadioValues_(fields, prefix) {
 }
 
 function sendNotification_(action, fields, folder, applicationId, uploads, signedPacket) {
-  var recipient = "dispatch@sstransco.com";
+  // Notifications go to a Drive activity log instead of email (no more dispatch@
+  // spam / info@ bounces). Driver invite emails are unaffected.
   var applicant = [fields.legal_first_name, fields.legal_last_name].filter(Boolean).join(" ") || "Pending applicant";
-  var subject = "[Driver application] " + (action === "submit" ? "Submitted" : "Saved") + " — " + applicant;
-  var lines = [
-    "Status: " + (action === "submit" ? "Submitted" : "Saved for later"),
-    "Applicant: " + applicant,
-    "Application ID: " + applicationId,
-    "Folder: " + folder.getUrl(),
-    "Files received in this event: " + uploads.length
-  ];
-  if (signedPacket) lines.push("Signed packet: " + signedPacket.url, "Audit ID: " + signedPacket.auditId);
-  if (signedPacket && signedPacket.forms) lines.push("Signed form PDFs: " + signedPacket.forms.length);
-  if (signedPacket && signedPacket.printablePacket) lines.push("Printable packet: " + signedPacket.printablePacket.url);
-  lines.push("", "This notification intentionally excludes SSN, license number, date of birth, and medical details.");
-  MailApp.sendEmail({ to: recipient, subject: subject, body: lines.join("\n"), name: SIGMA_CONFIG.companyName });
+  var details = (action === "submit" ? "Submitted" : "Saved for later") +
+    " | files this event: " + uploads.length +
+    " | folder: " + folder.getUrl() +
+    (signedPacket ? " | signed: " + signedPacket.url : "");
+  logActivity_(action, applicant, applicationId, details);
+}
+
+function logActivity_(event, applicant, applicationId, details) {
+  try {
+    var parent = DriveApp.getFolderById(SIGMA_CONFIG.parentFolderId);
+    var files = parent.getFilesByName("Activity Log");
+    var spreadsheet;
+    if (files.hasNext()) {
+      spreadsheet = SpreadsheetApp.openById(files.next().getId());
+    } else {
+      spreadsheet = SpreadsheetApp.create("Activity Log");
+      DriveApp.getFileById(spreadsheet.getId()).moveTo(parent);
+    }
+    var sheet = spreadsheet.getSheets()[0];
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["timestamp_utc", "event", "applicant", "application_id", "details"]);
+      sheet.setFrozenRows(1);
+    }
+    sheet.appendRow([new Date().toISOString(), event, applicant || "", applicationId || "", details || ""]);
+  } catch (error) {
+    console.warn("Activity log failed: " + error);
+  }
 }
 
 function readFields_(spreadsheet) {

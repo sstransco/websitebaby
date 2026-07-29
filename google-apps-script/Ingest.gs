@@ -675,20 +675,10 @@ function createIndexSheet_(parent) {
 /* ============================ Notifications ========================== */
 
 function notifyIngest_(summary) {
-  var lines = ["New driver files were dragged into the Applicants drive and prefilled onto the application:", ""];
+  // Log to the Drive activity log instead of emailing dispatch@.
   summary.forEach(function(item) {
-    lines.push("• " + item.applicant + " (" + item.files + " file(s))");
-    lines.push("   Open: " + item.openUrl);
-    lines.push("   Folder: " + item.folderUrl);
-    if (item.medicalCardExpiration) lines.push("   Med card expires: " + humanDate_(item.medicalCardExpiration));
-    lines.push("");
-  });
-  lines.push("This notification intentionally excludes SSN, license number, and medical details.");
-  MailApp.sendEmail({
-    to: "dispatch@sstransco.com",
-    subject: "[Driver application] " + summary.length + " applicant folder(s) prefilled from Drive",
-    body: lines.join("\n"),
-    name: SIGMA_CONFIG.companyName
+    logActivity_("drive_ingest", item.applicant, "", item.files + " file(s) | folder: " + item.folderUrl +
+      " | open: " + item.openUrl + (item.medicalCardExpiration ? " | med exp: " + humanDate_(item.medicalCardExpiration) : ""));
   });
 }
 
