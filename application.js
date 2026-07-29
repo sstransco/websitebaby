@@ -1706,6 +1706,13 @@ function handleBackendMessage(event) {
       : "";
     resultPanel.innerHTML = `<strong>${pendingBackendAction === "submit" ? "Application submitted." : "Application saved."}</strong><p>Reference: ${data.applicationId}</p>${continuation}`;
     saveState.innerHTML = `<i></i> ${pendingBackendAction === "submit" ? "Submitted" : "Saved to Drive"}`;
+  } else if (pendingBackendAction === "load") {
+    // A failed restore just means there is no saved draft for this link — start
+    // fresh silently instead of showing an alarming "Could not load" error.
+    resultPanel.classList.add("is-hidden");
+    saveState.innerHTML = "<i></i> Draft in this tab";
+    pendingBackendAction = "";
+    return;
   } else {
     resultPanel.classList.add("is-error");
     resultPanel.innerHTML = `<strong>Could not ${pendingBackendAction}.</strong><p>${data.message || "The save service returned an error."}</p>`;
